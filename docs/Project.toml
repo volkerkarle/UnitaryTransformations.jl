@@ -1,0 +1,8 @@
+[deps]
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+QuantumAlgebra = "1b9008d5-2a9d-4901-8cfb-44bb87795b64"
+UnitaryTransformations = "2aaaa306-0b60-42d5-89de-b99f2615351e"
+
+[sources]
+QuantumAlgebra = {url = "https://github.com/volkerkarle/QuantumAlgebra.jl"}
+UnitaryTransformations = {path = "/home/vsilv/.nextcloud/src/UnitaryTransformations.jl"}
