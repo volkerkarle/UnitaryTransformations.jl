@@ -27,6 +27,9 @@ in perturbation theory.
 - `H`: The full Hamiltonian to transform
 - `P`: The low-energy subspace definition
 - `order`: Perturbation theory order (default: 2)
+- `simplify_generator`: Whether to simplify the generator S (default: false).
+  Simplifying S can be very slow at high orders due to GCD computations on
+  complex symbolic fractions. Set to `true` if you need simplified S.
 
 # Returns
 - Named tuple `(H_eff, S, H_P)` where:
@@ -48,7 +51,7 @@ P = Subspace(σz() => -1)  # qubit ground state
 result = schrieffer_wolff(H, P; order=2)
 ```
 """
-function schrieffer_wolff(H::QuExpr, P::Subspace; order::Int = 2)
+function schrieffer_wolff(H::QuExpr, P::Subspace; order::Int = 2, simplify_generator::Bool = false)
     order >= 1 || throw(ArgumentError("order must be at least 1, got $order"))
 
     # Normalize the Hamiltonian first
@@ -113,7 +116,12 @@ function schrieffer_wolff(H::QuExpr, P::Subspace; order::Int = 2)
 
     # Final simplification of results only
     H_eff = simplify_coefficients(H_eff)
-    S_total = simplify_coefficients(S_total)
+    
+    # Simplifying S_total is optional - it can be very slow at high orders
+    # due to GCD computations on complex symbolic fractions
+    if simplify_generator
+        S_total = simplify_coefficients(S_total)
+    end
 
     # Project the effective Hamiltonian onto subspace P
     H_P = simplify_coefficients(project_to_subspace(H_eff, P))

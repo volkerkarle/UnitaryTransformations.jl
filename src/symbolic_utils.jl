@@ -21,6 +21,10 @@ Returns a new QuExpr with simplified coefficients.
 
 Uses `simplify_fractions` which is much faster than full `simplify`
 for the rational expressions that arise in Schrieffer-Wolff.
+
+Note: Parallelization was attempted but SymbolicUtils/Symbolics.jl
+has thread-safety issues that cause race conditions during simplification.
+The serial version is used for correctness.
 """
 function simplify_coefficients(expr::QuExpr)
     # Build result directly to avoid expensive iszero checks in + operator
