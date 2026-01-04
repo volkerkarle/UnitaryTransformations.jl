@@ -1,6 +1,6 @@
 @testset "Commutator Series" begin
     using QuantumAlgebra
-    using UnitaryTransformations: nested_commutator, commutator_series, bch_transform
+    using UnitaryTransformations: nested_commutator, commutator_series, bch_transform, bch_combine
 
     @testset "Nested commutators" begin
         # [a, a†] = 1
@@ -44,6 +44,29 @@
         H = a'() * a()
 
         @test bch_transform(S, H; order = 2) == commutator_series(S, H, 2)
+    end
+
+    @testset "bch_combine" begin
+        # Test: e^A e^B = e^Z where Z = A + B + (1/2)[A,B] + ...
+        # For bosonic operators [a†, a] = -1, so [αa†, βa] = -αβ
+        
+        @variables α β
+        
+        A = α * a'()
+        B = β * a()
+        
+        # Order 1: Z = A + B
+        Z1 = bch_combine(A, B; order=1)
+        @test normal_form(Z1) == normal_form(α * a'() + β * a())
+        
+        # Order 2: Z = A + B + (1/2)[A,B] = αa† + βa - (1/2)αβ
+        Z2 = bch_combine(A, B; order=2)
+        expected = α * a'() + β * a() - (1//2) * α * β
+        @test normal_form(Z2) == normal_form(expected)
+        
+        # Order 3: Same as order 2 since [a†, -αβ] = 0 and [a, -αβ] = 0
+        Z3 = bch_combine(A, B; order=3)
+        @test normal_form(Z3) == normal_form(expected)
     end
 
     @testset "Spin commutators" begin
