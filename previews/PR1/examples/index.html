@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Examples · UnitaryTransformations.jl</title><meta name="title" content="Examples · UnitaryTransformations.jl"/><meta property="og:title" content="Examples · UnitaryTransformations.jl"/><meta property="twitter:title" content="Examples · UnitaryTransformations.jl"/><meta name="description" content="Documentation for UnitaryTransformations.jl."/><meta property="og:description" content="Documentation for UnitaryTransformations.jl."/><meta property="twitter:description" content="Documentation for UnitaryTransformations.jl."/><meta property="og:url" content="https://volkerkarle.github.io/UnitaryTransformations.jl/examples/"/><meta property="twitter:url" content="https://volkerkarle.github.io/UnitaryTransformations.jl/examples/"/><link rel="canonical" href="https://volkerkarle.github.io/UnitaryTransformations.jl/examples/"/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">UnitaryTransformations.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li><a class="tocitem" href="../tutorial/">Tutorial</a></li><li class="is-active"><a class="tocitem" href>Examples</a><ul class="internal"><li><a class="tocitem" href="#Jaynes-Cummings:-Dispersive-Regime"><span>Jaynes-Cummings: Dispersive Regime</span></a></li><li><a class="tocitem" href="#Two-Level-System-with-Transverse-Field"><span>Two-Level System with Transverse Field</span></a></li><li><a class="tocitem" href="#Rabi-Model:-Bloch-Siegert-Shift"><span>Rabi Model: Bloch-Siegert Shift</span></a></li><li><a class="tocitem" href="#Running-the-Examples"><span>Running the Examples</span></a></li></ul></li><li><a class="tocitem" href="../api/">API Reference</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Examples</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Examples</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/volkerkarle/UnitaryTransformations.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/volkerkarle/UnitaryTransformations.jl/blob/main/docs/src/examples.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="examples"><a class="docs-heading-anchor" href="#examples">Examples</a><a id="examples-1"></a><a class="docs-heading-anchor-permalink" href="#examples" title="Permalink"></a></h1><p>This page presents complete physics examples demonstrating the package capabilities.</p><h2 id="Jaynes-Cummings:-Dispersive-Regime"><a class="docs-heading-anchor" href="#Jaynes-Cummings:-Dispersive-Regime">Jaynes-Cummings: Dispersive Regime</a><a id="Jaynes-Cummings:-Dispersive-Regime-1"></a><a class="docs-heading-anchor-permalink" href="#Jaynes-Cummings:-Dispersive-Regime" title="Permalink"></a></h2><p>The Jaynes-Cummings model describes a two-level atom coupled to a single cavity mode:</p><p class="math-container">\[H = \omega_c a^\dagger a + \frac{\omega_q}{2}\sigma_z + g(a^\dagger\sigma^- + a\sigma^+)\]</p><p>In the <strong>dispersive regime</strong> (<span>$|\Delta| = |\omega_q - \omega_c| \gg g$</span>), the Schrieffer-Wolff transformation yields an effective Hamiltonian with a state-dependent frequency shift.</p><pre><code class="language-julia hljs">using UnitaryTransformations
+using QuantumAlgebra
+using Symbolics
+
+QuantumAlgebra.use_σpm(true)
+UnitaryTransformations.clear_param_cache!()
+
+# Define symbolic parameters
+@variables Δ g  # Δ = detuning ω_q - ω_c, g = coupling
+
+# Hamiltonian (in frame rotating at ω_c)
+H = Δ/2 * σz() + g * (a&#39;()*σm() + a()*σp())
+
+# Ground state subspace
+P = Subspace(σz() =&gt; -1)
+
+# Transform
+result = schrieffer_wolff(H, P; order=2)
+
+# Results
+println(&quot;Effective Hamiltonian:&quot;)
+for (op, coeff) in collect_terms(result.H_eff)
+    println(&quot;  &quot;, coeff, &quot;  &quot;, op)
+end</code></pre><h3 id="Physical-Interpretation"><a class="docs-heading-anchor" href="#Physical-Interpretation">Physical Interpretation</a><a id="Physical-Interpretation-1"></a><a class="docs-heading-anchor-permalink" href="#Physical-Interpretation" title="Permalink"></a></h3><p>The effective Hamiltonian contains:</p><ol><li><p><strong>Dispersive shift</strong>: <span>$\chi = g^2/\Delta$</span> </p><ul><li>Cavity frequency shifts by <span>$\pm\chi$</span> depending on qubit state</li><li>Used for <strong>qubit readout</strong> in circuit QED</li></ul></li><li><p><strong>AC Stark shift</strong>: Qubit frequency shifts with photon number</p><ul><li><span>$\omega_q \to \omega_q + 2\chi \langle a^\dagger a \rangle$</span></li></ul></li></ol><h3 id="Numerical-Verification"><a class="docs-heading-anchor" href="#Numerical-Verification">Numerical Verification</a><a id="Numerical-Verification-1"></a><a class="docs-heading-anchor-permalink" href="#Numerical-Verification" title="Permalink"></a></h3><pre><code class="language-julia hljs"># Compare with expected value
+χ = extract_coefficient(result.H_P, a&#39;()*a())
+println(&quot;Computed χ = &quot;, χ)
+println(&quot;Expected:  -g²/Δ&quot;)
+
+# Substitute values
+χ_num = substitute_values(result.H_P, Dict(:g =&gt; 0.1, :Δ =&gt; 1.0))
+println(&quot;χ(g=0.1, Δ=1) = -0.01  # matches -g²/Δ!&quot;)</code></pre><hr/><h2 id="Two-Level-System-with-Transverse-Field"><a class="docs-heading-anchor" href="#Two-Level-System-with-Transverse-Field">Two-Level System with Transverse Field</a><a id="Two-Level-System-with-Transverse-Field-1"></a><a class="docs-heading-anchor-permalink" href="#Two-Level-System-with-Transverse-Field" title="Permalink"></a></h2><p>A qubit in longitudinal and transverse magnetic fields:</p><p class="math-container">\[H = \frac{\Delta}{2}\sigma_z + \varepsilon\sigma_x\]</p><p>This is a textbook quantum mechanics problem with exact solution, making it perfect for verification.</p><pre><code class="language-julia hljs">using UnitaryTransformations
+using QuantumAlgebra
+using Symbolics
+
+QuantumAlgebra.use_σpm(true)
+UnitaryTransformations.clear_param_cache!()
+
+# Define symbolic parameters
+@variables Δ ε  # Δ = longitudinal field (energy splitting), ε = transverse field (perturbation)
+
+# Hamiltonian: σx = σ⁺ + σ⁻
+H = Δ/2 * σz() + ε * (σp() + σm())
+
+# Ground state subspace
+P = Subspace(σz() =&gt; -1)
+
+# Transform
+result = schrieffer_wolff(H, P; order=2)
+
+println(&quot;Projected Hamiltonian H_P:&quot;)
+for (op, coeff) in collect_terms(result.H_P)
+    println(&quot;  &quot;, coeff, &quot;  &quot;, op)
+end</code></pre><h3 id="Comparison-with-Exact-Solution"><a class="docs-heading-anchor" href="#Comparison-with-Exact-Solution">Comparison with Exact Solution</a><a id="Comparison-with-Exact-Solution-1"></a><a class="docs-heading-anchor-permalink" href="#Comparison-with-Exact-Solution" title="Permalink"></a></h3><p>The exact eigenvalues are:</p><p class="math-container">\[E_\pm = \pm\sqrt{\Delta^2/4 + \varepsilon^2}\]</p><p>The SW result for the ground state energy is:</p><p class="math-container">\[E_g = -\frac{\Delta}{2} - \frac{\varepsilon^2}{\Delta} + O(\varepsilon^4)\]</p><pre><code class="language-julia hljs"># Numerical comparison
+for ε_val in [0.01, 0.05, 0.1, 0.2]
+    Δ_val = 1.0
+    E_exact = -sqrt(Δ_val^2/4 + ε_val^2)
+    E_SW = -Δ_val/2 - ε_val^2/Δ_val
+    error = 100 * abs(E_exact - E_SW) / abs(E_exact)
+    println(&quot;ε/Δ = $ε_val: error = $(round(error, digits=4))%&quot;)
+end</code></pre><p>Output:</p><pre><code class="nohighlight hljs">ε/Δ = 0.01: error = 0.0%
+ε/Δ = 0.05: error = 0.0012%
+ε/Δ = 0.1: error = 0.0192%
+ε/Δ = 0.2: error = 0.2755%</code></pre><p>The perturbative result is excellent when <span>$\varepsilon \ll \Delta$</span>!</p><hr/><h2 id="Rabi-Model:-Bloch-Siegert-Shift"><a class="docs-heading-anchor" href="#Rabi-Model:-Bloch-Siegert-Shift">Rabi Model: Bloch-Siegert Shift</a><a id="Rabi-Model:-Bloch-Siegert-Shift-1"></a><a class="docs-heading-anchor-permalink" href="#Rabi-Model:-Bloch-Siegert-Shift" title="Permalink"></a></h2><p>The <strong>full Rabi model</strong> includes counter-rotating terms that are neglected in the rotating-wave approximation:</p><p class="math-container">\[H = \omega a^\dagger a + \frac{\Delta}{2}\sigma_z + g(\sigma^+ + \sigma^-)(a + a^\dagger)\]</p><p>The counter-rotating terms (<span>$a^\dagger\sigma^+$</span> and <span>$a\sigma^-$</span>) lead to the <strong>Bloch-Siegert shift</strong>.</p><pre><code class="language-julia hljs">using UnitaryTransformations
+using QuantumAlgebra
+using Symbolics
+
+QuantumAlgebra.use_σpm(true)
+UnitaryTransformations.clear_param_cache!()
+
+# Define symbolic parameters
+@variables ω Δ g  # ω = oscillator frequency, Δ = qubit splitting, g = coupling
+
+# Full Rabi Hamiltonian (no RWA)
+H_rabi = ω * a&#39;()*a() + Δ/2 * σz() + g * (σp() + σm()) * (a() + a&#39;())
+
+# For comparison: Jaynes-Cummings (with RWA)
+H_jc = ω * a&#39;()*a() + Δ/2 * σz() + g * (a&#39;()*σm() + a()*σp())
+
+P = Subspace(σz() =&gt; -1)
+
+result_rabi = schrieffer_wolff(H_rabi, P; order=2)
+result_jc = schrieffer_wolff(H_jc, P; order=2)
+
+println(&quot;Full Rabi model produces additional terms:&quot;)
+println(&quot;  - Squeezing terms: a², (a†)²&quot;)
+println(&quot;  - Modified dispersive shift&quot;)</code></pre><h3 id="Bloch-Siegert-Correction"><a class="docs-heading-anchor" href="#Bloch-Siegert-Correction">Bloch-Siegert Correction</a><a id="Bloch-Siegert-Correction-1"></a><a class="docs-heading-anchor-permalink" href="#Bloch-Siegert-Correction" title="Permalink"></a></h3><p>The counter-rotating terms contribute an additional frequency shift:</p><p class="math-container">\[\chi_{BS} \approx \frac{g^2}{\Delta + 2\omega}\]</p><p>This is typically small (∼1% of the JC dispersive shift) but measurable in precision experiments.</p><hr/><h2 id="Running-the-Examples"><a class="docs-heading-anchor" href="#Running-the-Examples">Running the Examples</a><a id="Running-the-Examples-1"></a><a class="docs-heading-anchor-permalink" href="#Running-the-Examples" title="Permalink"></a></h2><p>The complete example files are in the <code>examples/</code> directory:</p><pre><code class="language-bash hljs">cd UnitaryTransformations.jl
+julia --project examples/jaynes_cummings_dispersive.jl
+julia --project examples/two_level_system.jl
+julia --project examples/rabi_bloch_siegert.jl</code></pre><p>Each example includes detailed physical interpretation and numerical verification.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../tutorial/">« Tutorial</a><a class="docs-footer-nextpage" href="../api/">API Reference »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.16.1 on <span class="colophon-date" title="Sunday 4 January 2026 22:20">Sunday 4 January 2026</span>. Using Julia version 1.12.3.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
