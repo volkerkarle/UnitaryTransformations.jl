@@ -2,6 +2,8 @@
 
 [![Build Status](https://github.com/volkerkarle/UnitaryTransformations.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/volkerkarle/UnitaryTransformations.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://volkerkarle.github.io/UnitaryTransformations.jl/dev/)
+[![Code Style: Blue](https://img.shields.io/badge/code%20style-blue-4495d1.svg)](https://github.com/JuliaDiff/BlueStyle)
+[![Julia 1.12+](https://img.shields.io/badge/Julia-1.12+-blue.svg)](https://julialang.org/)
 
 A Julia package for performing symbolic Schrieffer-Wolff transformations on quantum Hamiltonians.
 
@@ -156,7 +158,7 @@ where `H_d` is the diagonal part and `V_od` is the off-diagonal perturbation.
 
 ## Requirements
 
-- Julia 1.10+
+- Julia 1.12+
 - QuantumAlgebra.jl (automatically installed)
 - Symbolics.jl (automatically installed)
 

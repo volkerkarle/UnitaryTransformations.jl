@@ -22,9 +22,9 @@ with S appearing n times.
 """
 function nested_commutator(S::QuExpr, H::QuExpr, n::Int)
     n >= 0 || throw(ArgumentError("n must be non-negative, got $n"))
-    
+
     result = H
-    for _ in 1:n
+    for _ = 1:n
         result = comm(S, result)
         result = normal_form(result)
     end
@@ -50,23 +50,23 @@ The expansion is truncated at `order` nested commutators.
 """
 function commutator_series(S::QuExpr, H::QuExpr, order::Int)
     order >= 0 || throw(ArgumentError("order must be non-negative, got $order"))
-    
+
     result = QuExpr()
     factorial_n = 1
-    
-    for n in 0:order
+
+    for n = 0:order
         if n > 0
             factorial_n *= n
         end
-        
+
         # Compute [S, [S, [..., [S, H]...]]] with n nested commutators
         term = nested_commutator(S, H, n)
-        
+
         # Add (1/n!) * term to result
         result = result + term * (1 // factorial_n)
         result = normal_form(result)
     end
-    
+
     return result
 end
 
@@ -77,4 +77,4 @@ Compute e^S H e^{-S} using the BCH formula to the specified order.
 
 This is an alias for `commutator_series` with a more intuitive name.
 """
-bch_transform(S::QuExpr, H::QuExpr; order::Int=4) = commutator_series(S, H, order)
+bch_transform(S::QuExpr, H::QuExpr; order::Int = 4) = commutator_series(S, H, order)

@@ -10,12 +10,26 @@ export decompose, diagonal_part, off_diagonal_part, is_diagonal, is_off_diagonal
 export classify_operator, OperatorClass
 
 using QuantumAlgebra
-using QuantumAlgebra: QuExpr, QuTerm, BaseOperator, BaseOpProduct, BaseOpType,
-    TLSx_, TLSy_, TLSz_, TLSCreate_, TLSDestroy_, 
-    BosonCreate_, BosonDestroy_, FermionCreate_, FermionDestroy_,
-    normal_form, QuOpName
+using QuantumAlgebra:
+    QuExpr,
+    QuTerm,
+    BaseOperator,
+    BaseOpProduct,
+    BaseOpType,
+    TLSx_,
+    TLSy_,
+    TLSz_,
+    TLSCreate_,
+    TLSDestroy_,
+    BosonCreate_,
+    BosonDestroy_,
+    FermionCreate_,
+    FermionDestroy_,
+    normal_form,
+    QuOpName
 
-import ..UnitaryTransformations: is_spin_constraint, is_number_constraint, get_spin_constraint_info
+import ..UnitaryTransformations:
+    is_spin_constraint, is_number_constraint, get_spin_constraint_info
 
 """
     OperatorClass
@@ -37,22 +51,22 @@ and affected_constraint_index indicates which constraint is affected (0 if none/
 """
 function classify_base_operator(op::BaseOperator, P::Subspace)
     t = op.t
-    
+
     for (i, constraint) in enumerate(P.constraints)
         # Check if this is a spin constraint
         spin_info = get_spin_constraint_info(constraint)
         if spin_info !== nothing
             spin_name, spin_inds, is_spin_down = spin_info
-            
+
             # Check if operator has same name and indices as the constraint
             if op.name == spin_name && op.inds == spin_inds
                 # σ+ raises spin: takes ↓ to ↑ (P → Q if P is spin down)
                 if t == TLSCreate_
                     return is_spin_down ? RAISING : LOWERING
-                # σ- lowers spin: takes ↑ to ↓ (Q → P if P is spin down)
+                    # σ- lowers spin: takes ↑ to ↓ (Q → P if P is spin down)
                 elseif t == TLSDestroy_
                     return is_spin_down ? LOWERING : RAISING
-                # σx and σy are off-diagonal in σz basis (they flip spin)
+                    # σx and σy are off-diagonal in σz basis (they flip spin)
                 elseif t == TLSx_ || t == TLSy_
                     return MIXED  # Contains both raising and lowering
                 # σz is diagonal
@@ -61,32 +75,32 @@ function classify_base_operator(op::BaseOperator, P::Subspace)
                 end
             end
         end
-        
+
         # For number constraints (a†a eigenvalue)
         if is_number_constraint(constraint)
             constraint_ops = first(constraint.operator.terms)[1].bares.v
             constraint_name = constraint_ops[1].name
             constraint_inds = constraint_ops[1].inds
-            
+
             # Check if operator has same name and indices
             if op.name == constraint_name && op.inds == constraint_inds
                 # a† creates a boson: increases n
                 if t == BosonCreate_
                     return constraint.eigenvalue == 0 ? RAISING : MIXED
-                # a annihilates a boson: decreases n (but can't go below 0)
+                    # a annihilates a boson: decreases n (but can't go below 0)
                 elseif t == BosonDestroy_
                     return constraint.eigenvalue == 0 ? LOWERING : MIXED
-                # f† creates a fermion
+                    # f† creates a fermion
                 elseif t == FermionCreate_
                     return constraint.eigenvalue == 0 ? RAISING : MIXED
-                # f annihilates a fermion
+                    # f annihilates a fermion
                 elseif t == FermionDestroy_
                     return constraint.eigenvalue == 0 ? LOWERING : MIXED
                 end
             end
         end
     end
-    
+
     # Operator doesn't affect any constraint - it's "transparent" (diagonal)
     return DIAGONAL
 end
@@ -100,16 +114,16 @@ A term is off-diagonal if it has a net raising or lowering effect.
 """
 function classify_term(term::QuTerm, P::Subspace)
     ops = term.bares.v
-    
+
     # Track net raising/lowering count PER constraint (per degree of freedom)
     # A term is diagonal if the net effect on ALL constraints is zero
-    
+
     has_mixed = false
-    constraint_effects = Dict{Int, Int}()  # constraint_index => net_raising (+1 for raising, -1 for lowering)
-    
+    constraint_effects = Dict{Int,Int}()  # constraint_index => net_raising (+1 for raising, -1 for lowering)
+
     for op in ops
         class = classify_base_operator(op, P)
-        
+
         if class == MIXED
             has_mixed = true
         elseif class == RAISING
@@ -122,12 +136,12 @@ function classify_term(term::QuTerm, P::Subspace)
         end
         # DIAGONAL operators don't affect any constraint
     end
-    
+
     # If any operator is truly MIXED (like σx), the term is mixed
     if has_mixed
         return MIXED
     end
-    
+
     # Check net effects on each constraint
     # If any constraint has non-zero net effect, the term is off-diagonal
     for (idx, net_effect) in constraint_effects
@@ -137,7 +151,7 @@ function classify_term(term::QuTerm, P::Subspace)
             return LOWERING
         end
     end
-    
+
     # All net effects are zero -> diagonal
     return DIAGONAL
 end
@@ -150,7 +164,7 @@ Returns 0 if no constraint is affected (transparent).
 """
 function find_affected_constraint(op::BaseOperator, P::Subspace)
     t = op.t
-    
+
     for (i, constraint) in enumerate(P.constraints)
         # Check spin constraints
         spin_info = get_spin_constraint_info(constraint)
@@ -162,13 +176,13 @@ function find_affected_constraint(op::BaseOperator, P::Subspace)
                 end
             end
         end
-        
+
         # Check number constraints
         if is_number_constraint(constraint)
             constraint_ops = first(constraint.operator.terms)[1].bares.v
             constraint_name = constraint_ops[1].name
             constraint_inds = constraint_ops[1].inds
-            
+
             if op.name == constraint_name && op.inds == constraint_inds
                 if t in (BosonCreate_, BosonDestroy_, FermionCreate_, FermionDestroy_)
                     return i
@@ -176,7 +190,7 @@ function find_affected_constraint(op::BaseOperator, P::Subspace)
             end
         end
     end
-    
+
     return 0  # No constraint affected
 end
 

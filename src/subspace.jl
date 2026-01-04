@@ -8,10 +8,23 @@ For example, `Subspace(σz() => -1)` defines the spin-down subspace.
 export Subspace, OperatorConstraint, get_spin_constraint_info
 
 using QuantumAlgebra
-using QuantumAlgebra: QuExpr, QuTerm, BaseOperator, BaseOpProduct, BaseOpType,
-    TLSx_, TLSy_, TLSz_, TLSCreate_, TLSDestroy_, 
-    BosonCreate_, BosonDestroy_, FermionCreate_, FermionDestroy_,
-    normal_form, comm
+using QuantumAlgebra:
+    QuExpr,
+    QuTerm,
+    BaseOperator,
+    BaseOpProduct,
+    BaseOpType,
+    TLSx_,
+    TLSy_,
+    TLSz_,
+    TLSCreate_,
+    TLSDestroy_,
+    BosonCreate_,
+    BosonDestroy_,
+    FermionCreate_,
+    FermionDestroy_,
+    normal_form,
+    comm
 
 """
     OperatorConstraint
@@ -45,8 +58,8 @@ P = Subspace(σz(:i) => -1)  # All spins down
 """
 struct Subspace
     constraints::Vector{OperatorConstraint}
-    
-    function Subspace(pairs::Pair{<:QuExpr, <:Number}...)
+
+    function Subspace(pairs::Pair{<:QuExpr,<:Number}...)
         constraints = [OperatorConstraint(op, val) for (op, val) in pairs]
         new(constraints)
     end
@@ -70,7 +83,7 @@ Handles both direct σz constraints and the expanded form -1 + 2σ⁺σ⁻.
 """
 function is_spin_constraint(c::OperatorConstraint)
     op = c.operator
-    
+
     # Case 1: Direct σz operator (when not in σpm mode)
     if length(op.terms) == 1
         term, coeff = first(op.terms)
@@ -78,7 +91,7 @@ function is_spin_constraint(c::OperatorConstraint)
             return true
         end
     end
-    
+
     # Case 2: σz in σpm mode: σz = -1 + 2σ⁺σ⁻
     # Check for two terms: constant -1 and 2σ⁺σ⁻
     if length(op.terms) == 2
@@ -86,7 +99,7 @@ function is_spin_constraint(c::OperatorConstraint)
         has_pm = false
         spin_name = nothing
         spin_inds = nothing
-        
+
         for (term, coeff) in op.terms
             ops = term.bares.v
             if isempty(ops) && coeff == -1
@@ -101,12 +114,12 @@ function is_spin_constraint(c::OperatorConstraint)
                 end
             end
         end
-        
+
         if has_const && has_pm
             return true
         end
     end
-    
+
     return false
 end
 
@@ -118,9 +131,9 @@ Returns (name, inds, is_spin_down) or nothing if not a spin constraint.
 """
 function get_spin_constraint_info(c::OperatorConstraint)
     is_spin_constraint(c) || return nothing
-    
+
     op = c.operator
-    
+
     # Case 1: Direct σz
     if length(op.terms) == 1
         term, coeff = first(op.terms)
@@ -130,7 +143,7 @@ function get_spin_constraint_info(c::OperatorConstraint)
             return (spin_op.name, spin_op.inds, c.eigenvalue == -1)
         end
     end
-    
+
     # Case 2: σz = -1 + 2σ⁺σ⁻ form
     if length(op.terms) == 2
         for (term, coeff) in op.terms
@@ -143,7 +156,7 @@ function get_spin_constraint_info(c::OperatorConstraint)
             end
         end
     end
-    
+
     return nothing
 end
 

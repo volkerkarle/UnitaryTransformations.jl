@@ -10,9 +10,23 @@ Uses Symbolics.jl for proper symbolic manipulation of energy denominators.
 module UnitaryTransformations
 
 using QuantumAlgebra
-using QuantumAlgebra: comm, normal_form, QuExpr, QuTerm, BaseOperator, BaseOpProduct,
-    Param, TLSx_, TLSy_, TLSz_, TLSCreate_, TLSDestroy_,
-    BosonCreate_, BosonDestroy_, FermionCreate_, FermionDestroy_,
+using QuantumAlgebra:
+    comm,
+    normal_form,
+    QuExpr,
+    QuTerm,
+    BaseOperator,
+    BaseOpProduct,
+    Param,
+    TLSx_,
+    TLSy_,
+    TLSz_,
+    TLSCreate_,
+    TLSDestroy_,
+    BosonCreate_,
+    BosonDestroy_,
+    FermionCreate_,
+    FermionDestroy_,
     QuOpName
 
 # Re-export commonly used QuantumAlgebra functions

@@ -69,7 +69,7 @@ println("H_off-diagonal = ", H_od)
 println("\n4. SCHRIEFFER-WOLFF TRANSFORMATION (order 2)")
 println("-"^40)
 
-result = schrieffer_wolff(H, P; order=2)
+result = schrieffer_wolff(H, P; order = 2)
 
 println("Generator S = ", result.S)
 println("\nEffective Hamiltonian H_eff = ", result.H_eff)
@@ -151,7 +151,13 @@ E_g_SW = -Δ_val/2 - ε_val^2/Δ_val
 println("\nGround state energy:")
 println("  Exact:         E_g = ", E_g_exact)
 println("  SW (2nd order): E_g = ", E_g_SW)
-println("  Error: ", abs(E_g_exact - E_g_SW), " (", 100*abs(E_g_exact - E_g_SW)/abs(E_g_exact), "%)")
+println(
+    "  Error: ",
+    abs(E_g_exact - E_g_SW),
+    " (",
+    100*abs(E_g_exact - E_g_SW)/abs(E_g_exact),
+    "%)",
+)
 
 # Try with a larger perturbation to see breakdown
 println("\n10. BREAKDOWN OF PERTURBATION THEORY")

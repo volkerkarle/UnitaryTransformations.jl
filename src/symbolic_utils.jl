@@ -48,9 +48,9 @@ values = Dict(:g => 0.1, :Δ => 1.0)
 H_numeric = substitute_values(H_P, values)
 ```
 """
-function substitute_values(expr::QuExpr, values::Dict{Symbol, T}) where T<:Number
+function substitute_values(expr::QuExpr, values::Dict{Symbol,T}) where {T<:Number}
     result = QuExpr()
-    
+
     for (term, coeff) in expr.terms
         # Handle Symbolics coefficient
         new_coeff = coeff
@@ -63,7 +63,7 @@ function substitute_values(expr::QuExpr, values::Dict{Symbol, T}) where T<:Numbe
                 new_coeff = Symbolics.unwrap(new_coeff)
             end
         end
-        
+
         # Handle remaining Params in the term
         remaining_params = Param[]
         param_factor = 1
@@ -74,14 +74,20 @@ function substitute_values(expr::QuExpr, values::Dict{Symbol, T}) where T<:Numbe
                 push!(remaining_params, p)
             end
         end
-        
+
         # Create new term with remaining params
-        new_term = QuTerm(term.nsuminds, term.δs, remaining_params,
-                          term.expvals, term.corrs, term.bares)
-        
+        new_term = QuTerm(
+            term.nsuminds,
+            term.δs,
+            remaining_params,
+            term.expvals,
+            term.corrs,
+            term.bares,
+        )
+
         result = result + (new_coeff * param_factor) * QuExpr(new_term)
     end
-    
+
     return normal_form(result)
 end
 
@@ -99,13 +105,13 @@ Extract the coefficient of a specific operator structure from a QuExpr.
 """
 function extract_coefficient(expr::QuExpr, target_ops::QuExpr)
     target_norm = normal_form(target_ops)
-    
+
     # Get the bare operator structure from target
     if isempty(target_norm.terms)
         return nothing
     end
     target_bares = first(target_norm.terms)[1].bares
-    
+
     for (term, coeff) in expr.terms
         if term.bares == target_bares
             # Build full coefficient including params
@@ -116,7 +122,7 @@ function extract_coefficient(expr::QuExpr, target_ops::QuExpr)
             return full_coeff isa Num ? simplify(full_coeff) : full_coeff
         end
     end
-    
+
     return nothing
 end
 
@@ -127,8 +133,8 @@ Collect and display all terms in a QuExpr with their simplified coefficients.
 Returns a vector of (operator_string, simplified_coefficient) pairs.
 """
 function collect_terms(expr::QuExpr)
-    results = Tuple{String, Any}[]
-    
+    results = Tuple{String,Any}[]
+
     for (term, coeff) in expr.terms
         # Build full coefficient
         full_coeff = coeff
@@ -139,12 +145,12 @@ function collect_terms(expr::QuExpr)
             end
             full_coeff = simplify(full_coeff)
         end
-        
+
         # Get operator string
         op_str = isempty(term.bares.v) ? "𝟙" : string(term.bares)
-        
+
         push!(results, (op_str, full_coeff))
     end
-    
+
     return results
 end

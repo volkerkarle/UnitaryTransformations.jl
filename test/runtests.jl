@@ -14,7 +14,7 @@ using Test
     @testset "QuantumAlgebra integration" begin
         # Basic commutator test: [a, a†] = 1
         @test normal_form(comm(a(), a'())) == one(QuExpr)
-        
+
         # Bosonic operators
         @test normal_form(a() * a'()) == a'() * a() + 1
     end

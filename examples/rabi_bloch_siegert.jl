@@ -48,7 +48,7 @@ g = Pr"g"  # coupling strength
 #                       ^^^^^^^^^^^^     ^^^^^^^^^^^^
 #                       JC terms         Counter-rotating
 
-H_full = ω * a'()*a() + Δ/2 * σz() + g * (σp() + σm()) * (a() + a'())
+H_full = ω * a'() * a() + Δ/2 * σz() + g * (σp() + σm()) * (a() + a'())
 
 println("\n1. FULL RABI HAMILTONIAN")
 println("-"^40)
@@ -57,7 +57,7 @@ println("\nExpanded:")
 println("H = ", normal_form(H_full))
 
 # For comparison, Jaynes-Cummings (RWA) Hamiltonian
-H_JC = ω * a'()*a() + Δ/2 * σz() + g * (a'()*σm() + a()*σp())
+H_JC = ω * a'() * a() + Δ/2 * σz() + g * (a'()*σm() + a()*σp())
 
 println("\nJaynes-Cummings (RWA):")
 println("H_JC = ", H_JC)
@@ -82,13 +82,13 @@ println("\n4. SCHRIEFFER-WOLFF TRANSFORMATION (order 2)")
 println("-"^40)
 println("Transforming the full Rabi model...")
 
-result_full = schrieffer_wolff(H_full, P; order=2)
+result_full = schrieffer_wolff(H_full, P; order = 2)
 
 println("Generator S = ", result_full.S)
 
 # Also do JC for comparison
 println("\nFor comparison, transforming JC model...")
-result_JC = schrieffer_wolff(H_JC, P; order=2)
+result_JC = schrieffer_wolff(H_JC, P; order = 2)
 
 # Analyze effective Hamiltonians
 println("\n5. EFFECTIVE HAMILTONIANS")
@@ -162,7 +162,13 @@ println("\nExpected dispersive shifts:")
 println("  JC only: χ = -g²/Δ = ", χ_JC_expected)
 println("  Counter-rotating: χ_CR = -g²/(Δ+2ω) = ", χ_CR_expected)
 println("  Full (approx): χ_full ≈ ", χ_full_expected)
-println("  Bloch-Siegert correction: ", χ_CR_expected, " (", 100*abs(χ_CR_expected/χ_JC_expected), "% of JC)")
+println(
+    "  Bloch-Siegert correction: ",
+    χ_CR_expected,
+    " (",
+    100*abs(χ_CR_expected/χ_JC_expected),
+    "% of JC)",
+)
 
 println("\n9. PHYSICAL INTERPRETATION")
 println("-"^40)

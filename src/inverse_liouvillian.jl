@@ -7,17 +7,18 @@ with the diagonal Hamiltonian cancels the off-diagonal perturbation.
 Uses Symbolics.jl for proper handling of energy denominators like g²/(Δ-ω).
 """
 
-export solve_for_generator, compute_energy_denominator, param_to_symbolic, symbolic_coefficient, clear_param_cache!
+export solve_for_generator,
+    compute_energy_denominator, param_to_symbolic, symbolic_coefficient, clear_param_cache!
 
 using QuantumAlgebra
-using QuantumAlgebra: QuExpr, QuTerm, BaseOperator, BaseOpProduct, Param,
-    normal_form, comm, QuOpName
+using QuantumAlgebra:
+    QuExpr, QuTerm, BaseOperator, BaseOpProduct, Param, normal_form, comm, QuOpName
 
 using Symbolics
 using Symbolics: Num, @variables
 
 # Cache for parameter -> Symbolics variable mapping
-const _param_cache = Dict{String, Num}()
+const _param_cache = Dict{String,Num}()
 
 """
     param_to_symbolic(p::Param)
@@ -61,16 +62,17 @@ Returns the energy denominator as a Symbolics Num expression.
 """
 function compute_energy_denominator(H_d::QuExpr, term::QuTerm, P::Subspace)
     # Create bare operator (strip params)
-    bare_O = QuExpr(QuTerm(term.nsuminds, term.δs, Param[], 
-                           term.expvals, term.corrs, term.bares))
-    
+    bare_O = QuExpr(
+        QuTerm(term.nsuminds, term.δs, Param[], term.expvals, term.corrs, term.bares),
+    )
+
     # Compute [H_d, bare_O]
     commutator = normal_form(comm(H_d, bare_O))
-    
+
     if isempty(commutator.terms)
         return nothing  # O commutes with H_d (degenerate case)
     end
-    
+
     # Find the term in commutator that matches the operator structure
     for (comm_term, comm_coeff) in commutator.terms
         if comm_term.bares == term.bares
@@ -78,7 +80,7 @@ function compute_energy_denominator(H_d::QuExpr, term::QuTerm, P::Subspace)
             return symbolic_coefficient(comm_term, comm_coeff)
         end
     end
-    
+
     # Could not find matching term
     return nothing
 end
@@ -106,31 +108,32 @@ Uses Symbolics.jl for proper symbolic division, allowing denominators like (Δ -
 """
 function solve_for_generator(H_d::QuExpr, V_od::QuExpr, P::Subspace)
     S = QuExpr()
-    
+
     for (term, coeff) in V_od.terms
         # Create bare operator (strip params to compute commutator cleanly)
-        bare_O = QuExpr(QuTerm(term.nsuminds, term.δs, Param[], 
-                               term.expvals, term.corrs, term.bares))
-        
+        bare_O = QuExpr(
+            QuTerm(term.nsuminds, term.δs, Param[], term.expvals, term.corrs, term.bares),
+        )
+
         # Get the full symbolic coefficient of this term in V_od
         numerator = symbolic_coefficient(term, coeff)
-        
+
         # Compute energy denominator from [H_d, bare_O]
         denominator = compute_energy_denominator(H_d, term, P)
-        
+
         if denominator === nothing
             @warn "Could not compute energy denominator for term: $bare_O"
             continue
         end
-        
+
         # The coefficient for S is numerator / denominator
         # This is now proper symbolic division!
         s_coeff = numerator / denominator
-        
+
         # Add to generator: s_coeff * bare_O
         S = S + s_coeff * bare_O
     end
-    
+
     return normal_form(S)
 end
 

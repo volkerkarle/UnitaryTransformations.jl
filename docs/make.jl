@@ -1,29 +1,34 @@
 using UnitaryTransformations
 using Documenter
 
-DocMeta.setdocmeta!(UnitaryTransformations, :DocTestSetup, :(using UnitaryTransformations; using QuantumAlgebra); recursive=true)
+DocMeta.setdocmeta!(
+    UnitaryTransformations,
+    :DocTestSetup,
+    :(using UnitaryTransformations; using QuantumAlgebra);
+    recursive = true,
+)
 
 makedocs(;
-    modules=[UnitaryTransformations],
-    authors="Volker Karle",
-    sitename="UnitaryTransformations.jl",
-    format=Documenter.HTML(;
-        prettyurls=get(ENV, "CI", "false") == "true",
-        canonical="https://volkerkarle.github.io/UnitaryTransformations.jl",
-        assets=String[],
-        edit_link="main",
+    modules = [UnitaryTransformations],
+    authors = "Volker Karle",
+    sitename = "UnitaryTransformations.jl",
+    format = Documenter.HTML(;
+        prettyurls = get(ENV, "CI", "false") == "true",
+        canonical = "https://volkerkarle.github.io/UnitaryTransformations.jl",
+        assets = String[],
+        edit_link = "main",
     ),
-    pages=[
+    pages = [
         "Home" => "index.md",
         "Tutorial" => "tutorial.md",
         "Examples" => "examples.md",
         "API Reference" => "api.md",
     ],
-    warnonly=[:missing_docs, :cross_references],
+    warnonly = [:missing_docs, :cross_references],
 )
 
 deploydocs(;
-    repo="github.com/volkerkarle/UnitaryTransformations.jl",
-    devbranch="main",
-    push_preview=true,
+    repo = "github.com/volkerkarle/UnitaryTransformations.jl",
+    devbranch = "main",
+    push_preview = true,
 )
