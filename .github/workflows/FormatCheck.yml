@@ -1,0 +1,33 @@
+name: Format Check
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  format:
+    name: Julia Formatter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.12'
+      - uses: julia-actions/cache@v2
+      - name: Install JuliaFormatter
+        run: julia -e 'using Pkg; Pkg.add("JuliaFormatter")'
+      - name: Check formatting
+        run: |
+          julia -e '
+            using JuliaFormatter
+            result = format(".", verbose=true)
+            if result
+              println("✓ Code is properly formatted")
+            else
+              println("✗ Code formatting issues found")
+              println("Run `julia -e '\''using JuliaFormatter; format(\".\")'\''` locally to fix")
+              exit(1)
+            end
+          '

@@ -37,10 +37,8 @@ QuantumAlgebra.use_σpm(true)
 # Clear cached variables
 UnitaryTransformations.clear_param_cache!()
 
-# Define symbolic parameters
-ω = Pr"ω"  # oscillator frequency
-Δ = Pr"Δ"  # qubit splitting
-g = Pr"g"  # coupling strength
+# Define symbolic parameters using Symbolics.jl
+@variables ω Δ g  # ω = oscillator frequency, Δ = qubit splitting, g = coupling strength
 
 # Full Rabi Hamiltonian (without RWA)
 # H = ω a†a + Δ/2 σz + g(σ⁺ + σ⁻)(a + a†)
@@ -78,17 +76,17 @@ println("H_diagonal     = ", H_d)
 println("H_off-diagonal = ", H_od)
 
 # SW transformation for full Rabi model
-println("\n4. SCHRIEFFER-WOLFF TRANSFORMATION (order 2)")
+println("\n4. SCHRIEFFER-WOLFF TRANSFORMATION (order 4)")
 println("-"^40)
-println("Transforming the full Rabi model...")
+println("Transforming the full Rabi model to 4th order...")
 
-result_full = schrieffer_wolff(H_full, P; order = 2)
+result_full = schrieffer_wolff(H_full, P; order = 4)
 
 println("Generator S = ", result_full.S)
 
-# Also do JC for comparison
-println("\nFor comparison, transforming JC model...")
-result_JC = schrieffer_wolff(H_JC, P; order = 2)
+# Also do JC for comparison - can go to higher order since it's simpler
+println("\nFor comparison, transforming JC model to 4th order...")
+result_JC = schrieffer_wolff(H_JC, P; order = 4)
 
 # Analyze effective Hamiltonians
 println("\n5. EFFECTIVE HAMILTONIANS")
@@ -130,6 +128,11 @@ from processes where both qubit and cavity are excited/de-excited together.
 
 For near-resonance (Δ << ω), the counter-rotating terms contribute:
   χ_CR ≈ -g²/(Δ + 2ω)
+
+At 4th order, we also get:
+  - Kerr nonlinearity: K (a†a)² where K ~ g⁴/Δ³
+  - Squeezing terms: a² and (a†)² from counter-rotating terms
+  - Cross-Kerr terms coupling photon number to qubit state
 
 The Bloch-Siegert shift is typically small when Δ << ω.
 """)

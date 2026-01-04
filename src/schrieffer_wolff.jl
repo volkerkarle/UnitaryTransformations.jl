@@ -11,7 +11,7 @@ using QuantumAlgebra
 using QuantumAlgebra:
     QuExpr, QuTerm, BaseOperator, BaseOpProduct, TLSCreate_, TLSDestroy_, normal_form, comm
 
-import ..UnitaryTransformations: get_spin_constraint_info
+import ..UnitaryTransformations: get_spin_constraint_info, simplify_coefficients
 
 """
     schrieffer_wolff(H::QuExpr, P::Subspace; order::Int=2)
@@ -36,12 +36,10 @@ in perturbation theory.
 
 # Example
 ```julia
-using QuantumAlgebra, UnitaryTransformations
+using QuantumAlgebra, UnitaryTransformations, Symbolics
 
 # Jaynes-Cummings in dispersive regime
-ω = Pr"ω"   # cavity frequency
-Δ = Pr"Δ"   # qubit splitting  
-g = Pr"g"   # coupling strength
+@variables ω Δ g  # ω = cavity frequency, Δ = qubit splitting, g = coupling strength
 
 H = ω * a'()*a() + Δ/2 * σz() + g * (a'()*σm() + a()*σp())
 
@@ -76,7 +74,7 @@ function schrieffer_wolff(H::QuExpr, P::Subspace; order::Int = 2)
         # Solve for S_n: [S_n, H_d] = -current_od
         S_n = solve_for_generator(H_d, current_od, P)
 
-        # Accumulate generator
+        # Accumulate generator (no simplification during iteration to avoid slowdown)
         S_total = normal_form(S_total + S_n)
 
         # Compute contribution to H_eff from this order
@@ -100,7 +98,7 @@ function schrieffer_wolff(H::QuExpr, P::Subspace; order::Int = 2)
             # Higher-order contributions
             # Use BCH: H_eff gets contributions from nested commutators
 
-            # Compute [S_n, H] 
+            # Compute [S_n, H_eff] 
             comm_Sn_H = normal_form(comm(S_n, H_eff))
             comm_diag, comm_od = decompose(comm_Sn_H, P)
 
@@ -113,8 +111,12 @@ function schrieffer_wolff(H::QuExpr, P::Subspace; order::Int = 2)
         end
     end
 
+    # Final simplification of results only
+    H_eff = simplify_coefficients(H_eff)
+    S_total = simplify_coefficients(S_total)
+
     # Project the effective Hamiltonian onto subspace P
-    H_P = project_to_subspace(H_eff, P)
+    H_P = simplify_coefficients(project_to_subspace(H_eff, P))
 
     return (H_eff = H_eff, S = S_total, H_P = H_P)
 end
@@ -141,17 +143,17 @@ function sw_generator(H::QuExpr, P::Subspace; order::Int = 1)
         end
 
         S_n = solve_for_generator(H_d, current_od, P)
-        S_total = normal_form(S_total + S_n)
+        S_total = simplify_coefficients(normal_form(S_total + S_n))
 
         if n < order
             # Compute next-order off-diagonal terms
             comm_Sn_H = normal_form(comm(S_n, H))
             _, comm_od = decompose(comm_Sn_H, P)
-            current_od = normal_form(comm_od / factorial(n + 1))
+            current_od = simplify_coefficients(normal_form(comm_od / factorial(n + 1)))
         end
     end
 
-    return S_total
+    return simplify_coefficients(S_total)
 end
 
 """

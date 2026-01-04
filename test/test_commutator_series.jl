@@ -24,7 +24,7 @@
         # e^{εa} (a†a) e^{-εa} = a†a + ε[a, a†a] + (ε²/2)[a,[a,a†a]] + ...
         #                      = a†a + εa + 0 + ... = a†a + εa
 
-        ε = Pr"ε"
+        @variables ε
         S = ε * a()
         H = a'() * a()
 
@@ -39,7 +39,7 @@
     end
 
     @testset "bch_transform alias" begin
-        ε = Pr"ε"
+        @variables ε
         S = ε * a()
         H = a'() * a()
 

@@ -22,13 +22,13 @@ Let's work with a concrete example: a two-level system (qubit) coupled to a harm
 ```julia
 using UnitaryTransformations
 using QuantumAlgebra
+using Symbolics
 
 # Use σ± basis - this is important for SW to work correctly!
 QuantumAlgebra.use_σpm(true)
 
 # Define symbolic parameters
-Δ = Pr"Δ"  # qubit-oscillator detuning
-g = Pr"g"  # coupling strength
+@variables Δ g  # Δ = qubit-oscillator detuning, g = coupling strength
 
 # Jaynes-Cummings Hamiltonian (in rotating frame)
 H = Δ/2 * σz() + g * (a'()*σm() + a()*σp())
@@ -153,12 +153,14 @@ Here's the full code:
 ```julia
 using UnitaryTransformations
 using QuantumAlgebra
+using Symbolics
 
 # Setup
 QuantumAlgebra.use_σpm(true)
 
-# Define Hamiltonian
-H = Pr"Δ"/2 * σz() + Pr"g" * (a'()*σm() + a()*σp())
+# Define symbolic parameters and Hamiltonian
+@variables Δ g
+H = Δ/2 * σz() + g * (a'()*σm() + a()*σp())
 
 # Define subspace and transform
 P = Subspace(σz() => -1)

@@ -17,6 +17,7 @@ makedocs(;
         canonical = "https://volkerkarle.github.io/UnitaryTransformations.jl",
         assets = String[],
         edit_link = "main",
+        repolink = "https://github.com/volkerkarle/UnitaryTransformations.jl",
     ),
     pages = [
         "Home" => "index.md",

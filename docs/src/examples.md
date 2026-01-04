@@ -15,13 +15,13 @@ In the **dispersive regime** (``|\Delta| = |\omega_q - \omega_c| \gg g``), the S
 ```julia
 using UnitaryTransformations
 using QuantumAlgebra
+using Symbolics
 
 QuantumAlgebra.use_σpm(true)
 UnitaryTransformations.clear_param_cache!()
 
-# Parameters
-Δ = Pr"Δ"  # detuning ω_q - ω_c
-g = Pr"g"  # coupling
+# Define symbolic parameters
+@variables Δ g  # Δ = detuning ω_q - ω_c, g = coupling
 
 # Hamiltonian (in frame rotating at ω_c)
 H = Δ/2 * σz() + g * (a'()*σm() + a()*σp())
@@ -78,13 +78,13 @@ This is a textbook quantum mechanics problem with exact solution, making it perf
 ```julia
 using UnitaryTransformations
 using QuantumAlgebra
+using Symbolics
 
 QuantumAlgebra.use_σpm(true)
 UnitaryTransformations.clear_param_cache!()
 
-# Parameters
-Δ = Pr"Δ"  # longitudinal field (energy splitting)
-ε = Pr"ε"  # transverse field (perturbation)
+# Define symbolic parameters
+@variables Δ ε  # Δ = longitudinal field (energy splitting), ε = transverse field (perturbation)
 
 # Hamiltonian: σx = σ⁺ + σ⁻
 H = Δ/2 * σz() + ε * (σp() + σm())
@@ -151,14 +151,13 @@ The counter-rotating terms (``a^\dagger\sigma^+`` and ``a\sigma^-``) lead to the
 ```julia
 using UnitaryTransformations
 using QuantumAlgebra
+using Symbolics
 
 QuantumAlgebra.use_σpm(true)
 UnitaryTransformations.clear_param_cache!()
 
-# Parameters
-ω = Pr"ω"  # oscillator frequency
-Δ = Pr"Δ"  # qubit splitting
-g = Pr"g"  # coupling
+# Define symbolic parameters
+@variables ω Δ g  # ω = oscillator frequency, Δ = qubit splitting, g = coupling
 
 # Full Rabi Hamiltonian (no RWA)
 H_rabi = ω * a'()*a() + Δ/2 * σz() + g * (σp() + σm()) * (a() + a'())

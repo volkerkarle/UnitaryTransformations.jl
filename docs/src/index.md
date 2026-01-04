@@ -42,13 +42,13 @@ The package will automatically install its dependencies:
 ```julia
 using UnitaryTransformations
 using QuantumAlgebra
+using Symbolics
 
 # Use σ± basis (recommended for SW transformations)
 QuantumAlgebra.use_σpm(true)
 
 # Define symbolic parameters
-Δ = Pr"Δ"  # energy splitting
-g = Pr"g"  # coupling strength
+@variables Δ g  # Δ = energy splitting, g = coupling strength
 
 # Jaynes-Cummings Hamiltonian
 H = Δ/2 * σz() + g * (a'()*σm() + a()*σp())

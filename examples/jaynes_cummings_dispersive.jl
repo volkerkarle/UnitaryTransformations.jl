@@ -16,9 +16,13 @@ where:
 In the dispersive regime (|Δ| >> g), the Schrieffer-Wolff transformation
 eliminates the direct qubit-cavity coupling, yielding an effective Hamiltonian:
 
-    H_eff = ω_c a†a + ω_q/2 σz + χ a†a σz + O(g³)
+    H_eff = ω_c a†a + ω_q/2 σz + χ a†a σz + O(g⁴)
 
-where χ = g²/Δ is the dispersive shift. This causes:
+where χ = g²/Δ is the dispersive shift. Higher-order corrections include:
+- Kerr nonlinearity: K (a†a)² with K ~ g⁴/Δ³
+- Modified dispersive shift
+
+This causes:
 - Qubit frequency shift depending on photon number (AC Stark shift)
 - Cavity frequency shift depending on qubit state (used for qubit readout)
 
@@ -39,10 +43,8 @@ QuantumAlgebra.use_σpm(true)
 # Clear any cached symbolic variables from previous runs
 UnitaryTransformations.clear_param_cache!()
 
-# Define symbolic parameters
-ω_c = Pr"ω_c"  # cavity frequency
-Δ = Pr"Δ"      # detuning (ω_q - ω_c)
-g = Pr"g"      # coupling strength
+# Define symbolic parameters using Symbolics.jl
+@variables Δ g  # Δ = detuning (ω_q - ω_c), g = coupling strength
 
 # Jaynes-Cummings Hamiltonian in rotating frame of cavity
 # H = Δ/2 σz + g(a†σ⁻ + a σ⁺)  (plus ω_c a†a which commutes with everything)
@@ -71,11 +73,11 @@ println("-"^40)
 println("H_diagonal     = ", H_d)
 println("H_off-diagonal = ", H_od)
 
-# Perform Schrieffer-Wolff transformation to second order
-println("\n4. SCHRIEFFER-WOLFF TRANSFORMATION (order 2)")
+# Perform Schrieffer-Wolff transformation to fourth order
+println("\n4. SCHRIEFFER-WOLFF TRANSFORMATION (order 4)")
 println("-"^40)
 
-result = schrieffer_wolff(H_int, P; order = 2)
+result = schrieffer_wolff(H_int, P; order = 4)
 
 println("Generator S = ", result.S)
 println("\nEffective Hamiltonian H_eff = ", result.H_eff)

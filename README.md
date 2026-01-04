@@ -32,15 +32,15 @@ Pkg.add(url="https://github.com/volkerkarle/UnitaryTransformations.jl")
 The classic application: a qubit coupled to a cavity in the dispersive regime.
 
 ```julia
-using UnitaryTransformations, QuantumAlgebra
+using UnitaryTransformations, QuantumAlgebra, Symbolics
 
 # Use σ± basis for clean results
 QuantumAlgebra.use_σpm(true)
 
-# Define Hamiltonian: H = Δ/2 σz + g(a†σ⁻ + a σ⁺)
-Δ = Pr"Δ"  # qubit-cavity detuning
-g = Pr"g"  # coupling strength
+# Define symbolic parameters
+@variables Δ g  # Δ = qubit-cavity detuning, g = coupling strength
 
+# Define Hamiltonian: H = Δ/2 σz + g(a†σ⁻ + a σ⁺)
 H = Δ/2 * σz() + g * (a'()*σm() + a()*σp())
 
 # Define subspace: qubit in ground state
@@ -61,12 +61,15 @@ println(result.H_P)
 A spin in longitudinal and transverse fields:
 
 ```julia
-using UnitaryTransformations, QuantumAlgebra
+using UnitaryTransformations, QuantumAlgebra, Symbolics
 
 QuantumAlgebra.use_σpm(true)
 
+# Define symbolic parameters
+@variables Δ ε
+
 # H = Δ/2 σz + ε σx  (where σx = σ⁺ + σ⁻)
-H = Pr"Δ"/2 * σz() + Pr"ε" * (σp() + σm())
+H = Δ/2 * σz() + ε * (σp() + σm())
 P = Subspace(σz() => -1)
 
 result = schrieffer_wolff(H, P; order=2)

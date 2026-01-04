@@ -15,7 +15,7 @@ using QuantumAlgebra:
     QuExpr, QuTerm, BaseOperator, BaseOpProduct, Param, normal_form, comm, QuOpName
 
 using Symbolics
-using Symbolics: Num, @variables
+using Symbolics: Num, @variables, simplify_fractions
 
 # Cache for parameter -> Symbolics variable mapping
 const _param_cache = Dict{String,Num}()
@@ -107,13 +107,12 @@ Uses Symbolics.jl for proper symbolic division, allowing denominators like (Δ -
 - `S`: The generator of the transformation (anti-Hermitian)
 """
 function solve_for_generator(H_d::QuExpr, V_od::QuExpr, P::Subspace)
-    S = QuExpr()
+    # Build result directly to avoid expensive iszero checks in + operator
+    result_terms = Dict{QuTerm,Number}()
 
     for (term, coeff) in V_od.terms
         # Create bare operator (strip params to compute commutator cleanly)
-        bare_O = QuExpr(
-            QuTerm(term.nsuminds, term.δs, Param[], term.expvals, term.corrs, term.bares),
-        )
+        bare_term = QuTerm(term.nsuminds, term.δs, Param[], term.expvals, term.corrs, term.bares)
 
         # Get the full symbolic coefficient of this term in V_od
         numerator = symbolic_coefficient(term, coeff)
@@ -122,19 +121,21 @@ function solve_for_generator(H_d::QuExpr, V_od::QuExpr, P::Subspace)
         denominator = compute_energy_denominator(H_d, term, P)
 
         if denominator === nothing
+            bare_O = QuExpr(bare_term)
             @warn "Could not compute energy denominator for term: $bare_O"
             continue
         end
 
         # The coefficient for S is numerator / denominator
-        # This is now proper symbolic division!
+        # Don't simplify here to avoid expensive GCD computation
+        # Simplification will happen at the end
         s_coeff = numerator / denominator
 
-        # Add to generator: s_coeff * bare_O
-        S = S + s_coeff * bare_O
+        # Add to result dictionary directly
+        result_terms[bare_term] = s_coeff
     end
 
-    return normal_form(S)
+    return QuExpr(result_terms)
 end
 
 """

@@ -13,12 +13,14 @@ where:
 When |ε| << |Δ|, we can use Schrieffer-Wolff to eliminate the off-diagonal
 σx term, yielding an effective diagonal Hamiltonian with renormalized splitting:
 
-    H_eff = (Δ/2 + ε²/Δ) σz + O(ε³)
+    H_eff = (Δ/2 + ε²/Δ) σz + O(ε⁴)
 
-This is equivalent to second-order perturbation theory, where the ground state
+At higher orders, we get corrections like ε⁴/Δ³ etc.
+
+This is equivalent to perturbation theory, where the ground state
 energy is lowered by -ε²/Δ and the excited state is raised by +ε²/Δ.
 
-Exact solution: E_± = ±√(Δ²/4 + ε²) ≈ ±Δ/2 ± ε²/Δ for small ε
+Exact solution: E_± = ±√(Δ²/4 + ε²) ≈ ±Δ/2 ± ε²/Δ ∓ ε⁴/(2Δ³) + ... for small ε
 
 Reference: Standard quantum mechanics textbook (Sakurai, Griffiths, etc.)
 =#
@@ -37,9 +39,8 @@ QuantumAlgebra.use_σpm(true)
 # Clear cached variables
 UnitaryTransformations.clear_param_cache!()
 
-# Define symbolic parameters
-Δ = Pr"Δ"  # longitudinal splitting
-ε = Pr"ε"  # transverse field (perturbation)
+# Define symbolic parameters using Symbolics.jl
+@variables Δ ε  # Δ = longitudinal splitting, ε = transverse field (perturbation)
 
 # Hamiltonian: H = Δ/2 σz + ε σx
 # In σpm basis: σx = σ⁺ + σ⁻
@@ -65,11 +66,11 @@ println("-"^40)
 println("H_diagonal     = ", H_d)
 println("H_off-diagonal = ", H_od)
 
-# Perform SW transformation
-println("\n4. SCHRIEFFER-WOLFF TRANSFORMATION (order 2)")
+# Perform SW transformation to 4th order
+println("\n4. SCHRIEFFER-WOLFF TRANSFORMATION (order 4)")
 println("-"^40)
 
-result = schrieffer_wolff(H, P; order = 2)
+result = schrieffer_wolff(H, P; order = 4)
 
 println("Generator S = ", result.S)
 println("\nEffective Hamiltonian H_eff = ", result.H_eff)
@@ -103,7 +104,7 @@ println("\n7. ENERGY ANALYSIS")
 println("-"^40)
 
 # In the P subspace (σz = -1), we get the ground state energy
-# E_g = -Δ/2 - ε²/Δ (lowered by second-order correction)
+# E_g = -Δ/2 - ε²/Δ + ε⁴/(2Δ³) + ... (lowered by perturbative corrections)
 println("Ground state energy from H_P:")
 for (op, coeff) in terms_P
     if op == "𝟙"
@@ -111,9 +112,9 @@ for (op, coeff) in terms_P
     end
 end
 
-println("\nExpected from 2nd-order perturbation theory:")
-println("  E_g = -Δ/2 - ε²/Δ")
-println("  (Energy lowered by ε²/Δ due to mixing with excited state)")
+println("\nExpected from perturbation theory:")
+println("  E_g = -Δ/2 - ε²/Δ + ε⁴/(2Δ³) - ...")
+println("  (Energy lowered by ε²/Δ at 2nd order, with 4th order corrections)")
 
 # Exact solution comparison
 println("\n8. COMPARISON WITH EXACT SOLUTION")
@@ -122,15 +123,14 @@ println("""
 Exact eigenvalues: E_± = ±√(Δ²/4 + ε²)
 
 Taylor expansion for small ε:
-  E_± ≈ ±Δ/2 · √(1 + 4ε²/Δ²)
-      ≈ ±Δ/2 · (1 + 2ε²/Δ²)
-      = ±Δ/2 ± ε²/Δ
+  E_± = ±(Δ/2)√(1 + 4ε²/Δ²)
+      ≈ ±Δ/2 · (1 + 2ε²/Δ² - 2ε⁴/Δ⁴ + ...)
+      = ±Δ/2 ± ε²/Δ ∓ ε⁴/(2Δ³) + ...
 
 Ground state (E_-):
-  E_g ≈ -Δ/2 - ε²/Δ  ✓ Matches our SW result!
+  E_g = -Δ/2 - ε²/Δ + ε⁴/(2Δ³) - ...
 
-Excited state (E_+):
-  E_e ≈ +Δ/2 + ε²/Δ
+With 4th order SW, we capture more of the exact result!
 """)
 
 # Numerical verification
@@ -146,29 +146,41 @@ println("\nH_P(numerical) = ", H_P_num)
 ε_val = 0.1
 
 E_g_exact = -sqrt(Δ_val^2/4 + ε_val^2)
-E_g_SW = -Δ_val/2 - ε_val^2/Δ_val
+E_g_SW_2nd = -Δ_val/2 - ε_val^2/Δ_val
+E_g_SW_4th = -Δ_val/2 - ε_val^2/Δ_val + ε_val^4/(2*Δ_val^3)
 
 println("\nGround state energy:")
-println("  Exact:         E_g = ", E_g_exact)
-println("  SW (2nd order): E_g = ", E_g_SW)
+println("  Exact:          E_g = ", E_g_exact)
 println(
+    "  SW (2nd order): E_g = ",
+    E_g_SW_2nd,
     "  Error: ",
-    abs(E_g_exact - E_g_SW),
-    " (",
-    100*abs(E_g_exact - E_g_SW)/abs(E_g_exact),
-    "%)",
+    round(100*abs(E_g_exact - E_g_SW_2nd)/abs(E_g_exact), digits = 4),
+    "%",
+)
+println(
+    "  SW (4th order): E_g ≈ ",
+    E_g_SW_4th,
+    "  Error: ",
+    round(100*abs(E_g_exact - E_g_SW_4th)/abs(E_g_exact), digits = 4),
+    "%",
 )
 
 # Try with a larger perturbation to see breakdown
 println("\n10. BREAKDOWN OF PERTURBATION THEORY")
 println("-"^40)
-println("Testing with larger ε to see when SW breaks down:")
+println("Comparing 2nd vs 4th order SW with larger ε:")
+println()
+println("  ε/Δ   | 2nd order error | 4th order error")
+println("  ------|-----------------|----------------")
 
-for ε_test in [0.1, 0.3, 0.5, 0.8, 1.0]
+for ε_test in [0.1, 0.2, 0.3, 0.4, 0.5]
     E_exact = -sqrt(Δ_val^2/4 + ε_test^2)
-    E_SW = -Δ_val/2 - ε_test^2/Δ_val
-    error_pct = 100*abs(E_exact - E_SW)/abs(E_exact)
-    println("  ε/Δ = $(ε_test): Error = $(round(error_pct, digits=2))%")
+    E_SW_2 = -Δ_val/2 - ε_test^2/Δ_val
+    E_SW_4 = -Δ_val/2 - ε_test^2/Δ_val + ε_test^4/(2*Δ_val^3)
+    err_2 = round(100*abs(E_exact - E_SW_2)/abs(E_exact), digits = 3)
+    err_4 = round(100*abs(E_exact - E_SW_4)/abs(E_exact), digits = 3)
+    println("  $(ε_test)   |     $(err_2)%      |     $(err_4)%")
 end
 
-println("\nAs expected, SW works well when ε << Δ and breaks down when ε ~ Δ")
+println("\nHigher-order SW provides better accuracy, especially for larger ε/Δ!")

@@ -11,25 +11,30 @@ using QuantumAlgebra
 using QuantumAlgebra: QuExpr, QuTerm, Param, normal_form
 
 using Symbolics
-using Symbolics: Num, simplify
+using Symbolics: Num, simplify, simplify_fractions
 
 """
     simplify_coefficients(expr::QuExpr)
 
 Simplify all Symbolics coefficients in a QuExpr.
 Returns a new QuExpr with simplified coefficients.
+
+Uses `simplify_fractions` which is much faster than full `simplify`
+for the rational expressions that arise in Schrieffer-Wolff.
 """
 function simplify_coefficients(expr::QuExpr)
-    result = QuExpr()
+    # Build result directly to avoid expensive iszero checks in + operator
+    result_terms = Dict{QuTerm,Number}()
     for (term, coeff) in expr.terms
         if coeff isa Num
-            simplified_coeff = simplify(coeff)
-            result = result + simplified_coeff * QuExpr(term)
+            # Use simplify_fractions - much faster for rational expressions
+            simplified_coeff = simplify_fractions(coeff)
+            result_terms[term] = simplified_coeff
         else
-            result = result + coeff * QuExpr(term)
+            result_terms[term] = coeff
         end
     end
-    return normal_form(result)
+    return QuExpr(result_terms)
 end
 
 """

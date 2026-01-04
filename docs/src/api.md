@@ -74,7 +74,15 @@ The following functions are re-exported for convenience:
 - `a()`, `a'()` - Bosonic annihilation/creation operators
 - `σx()`, `σy()`, `σz()` - Pauli matrices
 - `σp()`, `σm()` - Raising/lowering operators (when `use_σpm(true)`)
-- `Pr"name"` - Define symbolic parameters
+
+## Symbolic Parameters
+
+Use Symbolics.jl `@variables` to define symbolic parameters:
+
+```julia
+using Symbolics
+@variables Δ g ω  # Define symbolic parameters
+```
 
 ## Types
 

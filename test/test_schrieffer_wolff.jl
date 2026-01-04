@@ -58,9 +58,7 @@
         P = Subspace(σz() => -1)
 
         # Simple Jaynes-Cummings-like Hamiltonian
-        ω = Pr"ω"
-        Δ = Pr"Δ"
-        g = Pr"g"
+        @variables ω Δ g
 
         H = ω * a'() * a() + Δ/2 * σz() + g * (a()*σp() + a'()*σm())
 
@@ -80,8 +78,7 @@
         # H = Δ/2 σz + ε σx
         # For small ε, SW should give effective H ≈ Δ/2 σz + O(ε²)
 
-        Δ = Pr"Δ"
-        ε = Pr"ε"
+        @variables Δ ε
 
         # σx = σ+ + σ-
         H = Δ/2 * σz() + ε * (σp() + σm())
@@ -102,10 +99,7 @@
         # [σ⁺σ⁻, σ+] = σ+, so [H_d, σ+] = Δ σ+
         # Thus S = (ε/Δ) σ+ (with proper Symbolics division)
 
-        using Symbolics
-
-        Δ = Pr"Δ"
-        ε = Pr"ε"
+        @variables Δ ε
 
         H_d = Δ/2 * σz()
         V_od = ε * σp()
@@ -145,9 +139,7 @@
         # H_eff ≈ ω a†a + Δ/2 σz + χ a†a σz + const
         # where χ = g²/Δ (dispersive shift)
 
-        ω = Pr"ω"
-        Δ = Pr"Δ"
-        g = Pr"g"
+        @variables ω Δ g
 
         H = ω * a'() * a() + Δ/2 * σz() + g * (a'()*σm() + a()*σp())
 
@@ -166,17 +158,18 @@
     @testset "Projection to subspace" begin
         P = Subspace(σz() => -1)
 
+        @variables Δ
+
         # σz in P sector should give -1
-        H = Pr"Δ" * σz()
+        H = Δ * σz()
         H_P = project_to_subspace(H, P)
 
         # After projection, σz → -1
-        @test normal_form(H_P) == normal_form(-Pr"Δ" * one(QuExpr))
+        @test normal_form(H_P) == normal_form(-Δ * one(QuExpr))
     end
 
     @testset "Generator equation verification" begin
         # Rigorous check: [S, H_d] = -V_od must hold
-        using Symbolics
         using UnitaryTransformations: param_to_symbolic, clear_param_cache!
 
         clear_param_cache!()
@@ -203,8 +196,7 @@
             return normal_form(result)
         end
 
-        Δ = Pr"Δ"
-        ε = Pr"ε"
+        @variables Δ ε
         H = Δ/2 * σz() + ε * (σp() + σm())
         P = Subspace(σz() => -1)
 

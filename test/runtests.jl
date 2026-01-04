@@ -1,5 +1,6 @@
 using UnitaryTransformations
 using QuantumAlgebra
+using Symbolics
 using Test
 
 @testset "UnitaryTransformations.jl" begin

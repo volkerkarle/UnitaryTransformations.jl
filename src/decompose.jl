@@ -234,15 +234,16 @@ Note: Terms classified as MIXED (like σx when not using σpm mode) are skipped.
 For proper handling, ensure Hamiltonians are expressed in the σ± basis.
 """
 function diagonal_part(H::QuExpr, P::Subspace)
-    result = QuExpr()
+    # Build result directly to avoid expensive iszero checks in + operator
+    result_terms = Dict{QuTerm,Number}()
     for (term, coeff) in H.terms
         class = classify_term(term, P)
         if class == DIAGONAL
-            result = result + coeff * QuExpr(term)
+            result_terms[term] = coeff
         end
         # MIXED terms are skipped - they need to be expanded at a higher level
     end
-    return normal_form(result)
+    return QuExpr(result_terms)
 end
 
 """
@@ -255,15 +256,16 @@ Note: Terms classified as MIXED (like σx when not using σpm mode) are skipped.
 For proper handling, ensure Hamiltonians are expressed in the σ± basis.
 """
 function off_diagonal_part(H::QuExpr, P::Subspace)
-    result = QuExpr()
+    # Build result directly to avoid expensive iszero checks in + operator
+    result_terms = Dict{QuTerm,Number}()
     for (term, coeff) in H.terms
         class = classify_term(term, P)
         if class == RAISING || class == LOWERING
-            result = result + coeff * QuExpr(term)
+            result_terms[term] = coeff
         end
         # MIXED terms are skipped
     end
-    return normal_form(result)
+    return QuExpr(result_terms)
 end
 
 """
