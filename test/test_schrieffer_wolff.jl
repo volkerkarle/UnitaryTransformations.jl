@@ -246,7 +246,7 @@
         end
 
         @testset "Off-diagonal generators are MIXED" begin
-            for i in 1:6
+            for i = 1:6
                 term, _ = first(λ[i].terms)
                 bare = term.bares.v[1]
                 @test classify_base_operator(bare, P) == MIXED
@@ -294,7 +294,7 @@
         P = Subspace(λ[8] => 0.5)
 
         # Build H with all 8 generators
-        H = sum(i * λ[i] for i in 1:8)
+        H = sum(i * λ[i] for i = 1:8)
 
         H_d, H_od = decompose(H, P)
 
@@ -302,7 +302,7 @@
         @test normal_form(H_d) == normal_form(7 * λ[7] + 8 * λ[8])
 
         # Off-diagonal: sum of i*λᵢ for i in 1:6
-        @test normal_form(H_od) == normal_form(sum(i * λ[i] for i in 1:6))
+        @test normal_form(H_od) == normal_form(sum(i * λ[i] for i = 1:6))
 
         # Verify reconstruction
         @test normal_form(H) == normal_form(H_d + H_od)
@@ -322,7 +322,7 @@
         end
 
         @testset "σ₁, σ₂ are MIXED" begin
-            for i in 1:2
+            for i = 1:2
                 term, _ = first(σ[i].terms)
                 bare = term.bares.v[1]
                 @test classify_base_operator(bare, P) == MIXED
@@ -332,25 +332,25 @@
 
     @testset "SU(3) generator equation" begin
         using UnitaryTransformations: solve_for_generator_lie
-        
+
         λ = su_generators(3, :λ)
         @variables Δ ω g
 
         # Diagonal Hamiltonian
         H_d = Δ * λ[8] + ω * λ[7]
-        
+
         # Single off-diagonal term
         V_od = g * λ[2]  # Couples states 1↔3
-        
+
         # Solve for generator
         S = solve_for_generator_lie(H_d, V_od, 3, λ)
-        
+
         @test !isempty(S.terms)
-        
+
         # Verify generator equation: [S, H_d] = -V_od
         comm_S_Hd = normal_form(comm(S, H_d))
         residual = normal_form(comm_S_Hd + V_od)
-        
+
         # Check that residual simplifies to zero for each term
         for (term, coeff) in residual.terms
             simplified = Symbolics.simplify(coeff)
@@ -360,25 +360,25 @@
 
     @testset "SU(3) generator with multiple couplings" begin
         using UnitaryTransformations: solve_for_generator_lie
-        
+
         λ = su_generators(3, :λ)
         @variables Δ ω g₁ g₂
 
         # Diagonal Hamiltonian
         H_d = Δ * λ[8] + ω * λ[7]
-        
+
         # Lambda system: both ground states coupled to excited state
         V_od = g₁ * λ[2] + g₂ * λ[3]  # λ₂: 1↔3, λ₃: 2↔3
-        
+
         # Solve for generator
         S = solve_for_generator_lie(H_d, V_od, 3, λ)
-        
+
         @test !isempty(S.terms)
-        
+
         # Verify generator equation
         comm_S_Hd = normal_form(comm(S, H_d))
         residual = normal_form(comm_S_Hd + V_od)
-        
+
         for (term, coeff) in residual.terms
             simplified = Symbolics.simplify(coeff)
             @test simplified == 0 || abs(simplified) < 1e-10
@@ -387,35 +387,35 @@
 
     @testset "Full SW transformation - SU(3) Lambda system" begin
         using UnitaryTransformations: detect_lie_algebra_system
-        
+
         λ = su_generators(3, :λ)
         @variables Δ ω g
-        
+
         # Lambda (Λ) configuration 3-level atom
         # States: |1⟩, |2⟩ are ground states, |3⟩ is excited state
         # H_d uses diagonal generators λ₇, λ₈
         # V_od couples ground states to excited state via λ₂ (1↔3)
-        
+
         H = Δ * λ[8] + ω * λ[7] + g * λ[2]
-        
+
         # Define subspace constraint on diagonal generator
         P = Subspace(λ[8] => 0.5)
-        
+
         # Test that Lie algebra detection works
         H_d, H_od = decompose(H, P)
         lie_info = detect_lie_algebra_system(H_od)
         @test lie_info !== nothing
         @test lie_info.N == 3
-        
+
         # Compute SW to second order
-        result = schrieffer_wolff(H, P; order=2)
-        
+        result = schrieffer_wolff(H, P; order = 2)
+
         # The effective Hamiltonian should be block-diagonal
         @test is_diagonal(result.H_eff, P)
-        
+
         # Check that we got a generator
         @test !isempty(result.S.terms)
-        
+
         # Verify generator equation at first order
         # The generator S should satisfy [S, H_d] ≈ -H_od
         # We test this indirectly: if SW succeeded in making H_eff diagonal,
@@ -425,27 +425,27 @@
     @testset "Full SW transformation - SU(3) with all off-diagonal couplings" begin
         λ = su_generators(3, :λ)
         @variables ω₁ ω₂ g₁ g₂ g₃
-        
+
         # Full 3-level system with all couplings
         H_d = ω₁ * λ[7] + ω₂ * λ[8]
         H_od = g₁ * λ[1] + g₂ * λ[2] + g₃ * λ[3]  # All off-diagonal generators λ₁-λ₃
         H = H_d + H_od
-        
+
         P = Subspace(λ[8] => 0.5)
-        
+
         # First order SW transformation
-        result = schrieffer_wolff(H, P; order=1)
-        
+        result = schrieffer_wolff(H, P; order = 1)
+
         # The effective Hamiltonian at order 1 should just be H_d
         @test is_diagonal(result.H_eff, P)
-        
+
         # Generator should be non-empty
         @test !isempty(result.S.terms)
-        
+
         # Second order: should get dispersive-like shifts
-        result2 = schrieffer_wolff(H, P; order=2)
+        result2 = schrieffer_wolff(H, P; order = 2)
         @test is_diagonal(result2.H_eff, P)
-        
+
         # H_eff at order 2 should have more terms than at order 1 (dispersive shifts)
         @test length(result2.H_eff.terms) >= length(result.H_eff.terms)
     end
@@ -453,35 +453,35 @@
     @testset "N-level transition operators + bosons" begin
         # Test with generic N-level system using transition operators
         # This tests the eigenoperator method with nlevel_ops
-        
+
         σ5 = nlevel_ops(5, :q)  # 5-level system
-        
+
         # Symbolic energies
-        ω = [Symbolics.variable(Symbol("ω", i)) for i in 1:5]
+        ω = [Symbolics.variable(Symbol("ω", i)) for i = 1:5]
         @variables ωc g
-        
+
         # Diagonal Hamiltonian: atom + cavity
-        H_atom = sum(ω[i] * σ5[i,i] for i in 1:5)
+        H_atom = sum(ω[i] * σ5[i, i] for i = 1:5)
         H_cav = ωc * a'() * a()
         H_d = H_atom + H_cav
-        
+
         # Jaynes-Cummings coupling between levels 1,3
-        V = g * (σ5[1,3] * a'() + σ5[3,1] * a())
-        
+        V = g * (σ5[1, 3] * a'() + σ5[3, 1] * a())
+
         H = H_d + V
-        
+
         # Subspace: cavity vacuum
         P = Subspace(a'()*a() => 0)
-        
+
         # SW transformation
-        result = schrieffer_wolff(H, P; order=2)
-        
+        result = schrieffer_wolff(H, P; order = 2)
+
         # Should produce block-diagonal result
         @test is_diagonal(result.H_eff, P)
-        
+
         # Should have dispersive shifts (a†a q¹¹ and a†a q³³ terms)
         @test !isempty(result.S.terms)
-        
+
         # H_eff should have more terms than H_d due to dispersive shifts
         @test length(result.H_eff.terms) > length(H_d.terms)
     end
@@ -489,30 +489,31 @@
     @testset "N-level with multiple cavity couplings" begin
         # Test 7-level system with multiple transitions
         σ7 = nlevel_ops(7, :q)
-        
+
         @variables Δ₁ Δ₂ ωc g₁ g₂
-        
+
         # Simplified diagonal: only some levels have non-zero energy
-        H_atom = Δ₁ * σ7[3,3] + Δ₂ * σ7[4,4]
+        H_atom = Δ₁ * σ7[3, 3] + Δ₂ * σ7[4, 4]
         H_cav = ωc * a'() * a()
         H_d = H_atom + H_cav
-        
+
         # Multiple couplings: 1↔3 and 2↔4
-        V = g₁ * (σ7[1,3] * a'() + σ7[3,1] * a()) + 
-            g₂ * (σ7[2,4] * a'() + σ7[4,2] * a())
-        
+        V =
+            g₁ * (σ7[1, 3] * a'() + σ7[3, 1] * a()) +
+            g₂ * (σ7[2, 4] * a'() + σ7[4, 2] * a())
+
         H = H_d + V
         P = Subspace(a'()*a() => 0)
-        
+
         # Decomposition should work
         H_diag, H_od = decompose(H, P)
         @test is_diagonal(H_diag, P)
         @test is_off_diagonal(H_od, P)
-        
+
         # SW transformation
-        result = schrieffer_wolff(H, P; order=2)
+        result = schrieffer_wolff(H, P; order = 2)
         @test is_diagonal(result.H_eff, P)
-        
+
         # H_eff should have more terms than H_d due to dispersive shifts
         @test length(result.H_eff.terms) > length(H_d.terms)
     end

@@ -312,7 +312,7 @@ function get_lie_algebra_constraint_info(c::OperatorConstraint)
         inds = bare.inds,
         algebra_id = bare.algebra_id,
         gen_idx = bare.gen_idx,
-        eigenvalue = c.eigenvalue
+        eigenvalue = c.eigenvalue,
     )
 end
 

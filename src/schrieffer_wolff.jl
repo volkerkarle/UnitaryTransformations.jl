@@ -51,7 +51,12 @@ P = Subspace(σz() => -1)  # qubit ground state
 result = schrieffer_wolff(H, P; order=2)
 ```
 """
-function schrieffer_wolff(H::QuExpr, P::Subspace; order::Int = 2, simplify_generator::Bool = false)
+function schrieffer_wolff(
+    H::QuExpr,
+    P::Subspace;
+    order::Int = 2,
+    simplify_generator::Bool = false,
+)
     order >= 1 || throw(ArgumentError("order must be at least 1, got $order"))
 
     # Normalize the Hamiltonian first
@@ -116,7 +121,7 @@ function schrieffer_wolff(H::QuExpr, P::Subspace; order::Int = 2, simplify_gener
 
     # Final simplification of results only
     H_eff = simplify_coefficients(H_eff)
-    
+
     # Simplifying S_total is optional - it can be very slow at high orders
     # due to GCD computations on complex symbolic fractions
     if simplify_generator

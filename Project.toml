@@ -7,6 +7,9 @@ authors = ["Volker Karle"]
 QuantumAlgebra = "1b9008d5-2a9d-4901-8cfb-44bb87795b64"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
+[sources]
+QuantumAlgebra = {url = "https://github.com/volkerkarle/QuantumAlgebra.jl"}
+
 [compat]
 QuantumAlgebra = "1.6"
 Symbolics = "5, 6"

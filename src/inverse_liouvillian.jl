@@ -11,14 +11,29 @@ Two approaches are supported:
 Uses Symbolics.jl for proper handling of energy denominators like g²/(Δ-ω).
 """
 
-export solve_for_generator, solve_for_generator_lie, solve_for_generator_eigenoperator,
-    compute_energy_denominator, compute_energy_eigenvalues, detect_lie_algebra_system,
-    param_to_symbolic, symbolic_coefficient, clear_param_cache!
+export solve_for_generator,
+    solve_for_generator_lie,
+    solve_for_generator_eigenoperator,
+    compute_energy_denominator,
+    compute_energy_eigenvalues,
+    detect_lie_algebra_system,
+    param_to_symbolic,
+    symbolic_coefficient,
+    clear_param_cache!
 
 using QuantumAlgebra
 using QuantumAlgebra:
-    QuExpr, QuTerm, BaseOperator, BaseOpProduct, Param, normal_form, comm, QuOpName,
-    LieAlgebraGen_, SU2_ALGEBRA_ID, SU3_ALGEBRA_ID
+    QuExpr,
+    QuTerm,
+    BaseOperator,
+    BaseOpProduct,
+    Param,
+    normal_form,
+    comm,
+    QuOpName,
+    LieAlgebraGen_,
+    SU2_ALGEBRA_ID,
+    SU3_ALGEBRA_ID
 
 using Symbolics
 using Symbolics: Num, @variables, simplify_fractions
@@ -44,10 +59,11 @@ function detect_lie_algebra_system(V_od::QuExpr)
             if op.t == LieAlgebraGen_
                 # Found a Lie algebra generator
                 algebra_id = op.algebra_id
-                N = algebra_id == SU2_ALGEBRA_ID ? 2 : 
-                    algebra_id == SU3_ALGEBRA_ID ? 3 : 
+                N =
+                    algebra_id == SU2_ALGEBRA_ID ? 2 :
+                    algebra_id == SU3_ALGEBRA_ID ? 3 :
                     error("Unknown algebra_id: $algebra_id")
-                return (N=N, algebra_id=algebra_id, name=op.name, inds=op.inds)
+                return (N = N, algebra_id = algebra_id, name = op.name, inds = op.inds)
             end
         end
     end
@@ -104,7 +120,7 @@ function symbolic_coefficient(term::QuTerm, coeff::Number)
     else
         result = Num(coeff)
     end
-    
+
     for p in term.params
         result = result * param_to_symbolic(p)
     end
@@ -137,7 +153,7 @@ function compute_energy_denominator(H_d::QuExpr, term::QuTerm, P::Subspace)
     # Normal-order the original term for comparison
     # (the commutator result is already normal-ordered)
     bare_O_normal = normal_form(bare_O)
-    
+
     # Get the bares from the normal-ordered original
     if isempty(bare_O_normal.terms)
         return nothing
@@ -183,14 +199,19 @@ Uses Symbolics.jl for proper symbolic division, allowing denominators like (Δ -
 function solve_for_generator(H_d::QuExpr, V_od::QuExpr, P::Subspace)
     # Check if V_od contains Lie algebra operators
     lie_info = detect_lie_algebra_system(V_od)
-    
+
     if lie_info !== nothing
         # Use matrix-element method for Lie algebras
         generators = get_generators_for_lie_system(lie_info)
-        return solve_for_generator_lie(H_d, V_od, lie_info.N, generators; 
-                                        algebra_id=lie_info.algebra_id)
+        return solve_for_generator_lie(
+            H_d,
+            V_od,
+            lie_info.N,
+            generators;
+            algebra_id = lie_info.algebra_id,
+        )
     end
-    
+
     # Use eigenoperator method for TLS/bosons
     return solve_for_generator_eigenoperator(H_d, V_od, P)
 end
@@ -211,7 +232,8 @@ function solve_for_generator_eigenoperator(H_d::QuExpr, V_od::QuExpr, P::Subspac
 
     for (term, coeff) in V_od.terms
         # Create bare operator (strip params to compute commutator cleanly)
-        bare_term = QuTerm(term.nsuminds, term.δs, Param[], term.expvals, term.corrs, term.bares)
+        bare_term =
+            QuTerm(term.nsuminds, term.δs, Param[], term.expvals, term.corrs, term.bares)
 
         # Get the full symbolic coefficient of this term in V_od
         numerator = symbolic_coefficient(term, coeff)
@@ -278,36 +300,36 @@ This function extracts the coefficients from H_d and computes Eᵢ for each stat
 Returns a vector of symbolic expressions [E₁, E₂, ..., Eₙ].
 """
 function compute_energy_eigenvalues(H_d::QuExpr, N::Int, algebra_id::UInt16)
-    eigenvalues = [Num(0) for _ in 1:N]
-    
+    eigenvalues = [Num(0) for _ = 1:N]
+
     for (term, coeff) in H_d.terms
         ops = term.bares.v
-        
+
         # Skip identity terms (no operators)
         if isempty(ops)
             sym_coeff = symbolic_coefficient(term, coeff)
-            for i in 1:N
+            for i = 1:N
                 eigenvalues[i] += sym_coeff
             end
             continue
         end
-        
+
         # Single Lie algebra generator term
         if length(ops) == 1 && ops[1].t == LieAlgebraGen_
             op = ops[1]
             if op.algebra_id == algebra_id
                 gen_idx = Int(op.gen_idx)
                 sym_coeff = symbolic_coefficient(term, coeff)
-                
+
                 # Get the diagonal elements of this generator
                 gm = QuantumAlgebra.gellmann_matrix(N, gen_idx)
-                for i in 1:N
+                for i = 1:N
                     eigenvalues[i] += sym_coeff * real(gm[i, i])
                 end
             end
         end
     end
-    
+
     return eigenvalues
 end
 
@@ -325,36 +347,36 @@ Returns a Dict mapping (i,j) => coefficient for transition i→j.
 """
 function gellmann_to_cartan_weyl(V_od::QuExpr, N::Int, algebra_id::UInt16)
     # Map (i,j) -> symbolic coefficient
-    transitions = Dict{Tuple{Int,Int}, Any}()
-    
+    transitions = Dict{Tuple{Int,Int},Any}()
+
     for (term, coeff) in V_od.terms
         ops = term.bares.v
-        
+
         if length(ops) != 1 || ops[1].t != LieAlgebraGen_
             @warn "Non-Lie algebra term in V_od, skipping: $term"
             continue
         end
-        
+
         op = ops[1]
         if op.algebra_id != algebra_id
             continue
         end
-        
+
         gen_idx = Int(op.gen_idx)
         sym_coeff = symbolic_coefficient(term, coeff)
-        
+
         # Get the matrix representation
         gm = QuantumAlgebra.gellmann_matrix(N, gen_idx)
-        
+
         # Extract off-diagonal elements
-        for i in 1:N
-            for j in 1:N
+        for i = 1:N
+            for j = 1:N
                 if i != j && !iszero(gm[i, j])
                     # Matrix element ⟨i|λₖ|j⟩ contributes to E_{ij}
                     key = (i, j)
                     matrix_elem = gm[i, j]
                     contribution = sym_coeff * matrix_elem
-                    
+
                     if haskey(transitions, key)
                         transitions[key] += contribution
                     else
@@ -364,7 +386,7 @@ function gellmann_to_cartan_weyl(V_od::QuExpr, N::Int, algebra_id::UInt16)
             end
         end
     end
-    
+
     return transitions
 end
 
@@ -385,8 +407,11 @@ So for S = S[i,j] |i⟩⟨j| + S[j,i] |j⟩⟨i| (Hermitian):
     Real Gell-Mann coeff = S[i,j] + S[j,i]
     Imag Gell-Mann coeff = i(S[i,j] - S[j,i])
 """
-function cartan_weyl_to_gellmann(transitions::Dict{Tuple{Int,Int}, T}, N::Int, 
-                                  generators::Tuple) where T
+function cartan_weyl_to_gellmann(
+    transitions::Dict{Tuple{Int,Int},T},
+    N::Int,
+    generators::Tuple,
+) where {T}
     # SU(3) specific: map transition pairs to Gell-Mann generator pairs
     # (i,j) with i<j maps to (real_gen, imag_gen)
     if N == 3
@@ -402,10 +427,10 @@ function cartan_weyl_to_gellmann(transitions::Dict{Tuple{Int,Int}, T}, N::Int,
     else
         error("cartan_weyl_to_gellmann not implemented for N=$N")
     end
-    
+
     result = zero(QuExpr)
     processed = Set{Tuple{Int,Int}}()
-    
+
     for ((i, j), S_ij) in transitions
         # Process each pair (i,j) and (j,i) together
         pair = i < j ? (i, j) : (j, i)
@@ -413,28 +438,28 @@ function cartan_weyl_to_gellmann(transitions::Dict{Tuple{Int,Int}, T}, N::Int,
             continue
         end
         push!(processed, pair)
-        
+
         # Get both transitions
         S_up = get(transitions, pair, Num(0))           # S[i,j] where i<j (raising)
         S_down = get(transitions, (pair[2], pair[1]), Num(0))  # S[j,i] (lowering)
-        
+
         # Get the Gell-Mann generator indices
         real_gen, imag_gen = transition_to_gen[pair]
-        
+
         # |i⟩⟨j| = λ_real + i λ_imag  (for i < j)
         # |j⟩⟨i| = λ_real - i λ_imag
         #
         # S = S_up |i⟩⟨j| + S_down |j⟩⟨i|
         #   = S_up (λ_real + i λ_imag) + S_down (λ_real - i λ_imag)
         #   = (S_up + S_down) λ_real + i(S_up - S_down) λ_imag
-        
+
         coeff_real = S_up + S_down
         coeff_imag = 1im * (S_up - S_down)
-        
+
         result = result + coeff_real * generators[real_gen]
         result = result + coeff_imag * generators[imag_gen]
     end
-    
+
     return normal_form(result)
 end
 
@@ -459,25 +484,30 @@ This approach works for any SU(N) Lie algebra by:
 # Returns
 - `S`: The generator of the transformation
 """
-function solve_for_generator_lie(H_d::QuExpr, V_od::QuExpr, N::Int, generators::Tuple;
-                                  algebra_id::UInt16=SU3_ALGEBRA_ID)
+function solve_for_generator_lie(
+    H_d::QuExpr,
+    V_od::QuExpr,
+    N::Int,
+    generators::Tuple;
+    algebra_id::UInt16 = SU3_ALGEBRA_ID,
+)
     # Step 1: Compute energy eigenvalues
     E = compute_energy_eigenvalues(H_d, N, algebra_id)
-    
+
     # Step 2: Convert V_od to transition basis
     V_transitions = gellmann_to_cartan_weyl(V_od, N, algebra_id)
-    
+
     # Step 3: Apply inverse Liouvillian in transition basis
     # S_{ij} = V_{ij} / (E_i - E_j)
-    S_transitions = Dict{Tuple{Int,Int}, Any}()
-    
+    S_transitions = Dict{Tuple{Int,Int},Any}()
+
     for ((i, j), V_ij) in V_transitions
         denominator = E[i] - E[j]
         S_transitions[(i, j)] = V_ij / denominator
     end
-    
+
     # Step 4: Convert S back to Gell-Mann basis
     S = cartan_weyl_to_gellmann(S_transitions, N, generators)
-    
+
     return S
 end

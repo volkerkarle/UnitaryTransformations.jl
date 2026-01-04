@@ -32,9 +32,13 @@ using QuantumAlgebra:
     QuOpName
 
 import ..UnitaryTransformations:
-    is_spin_constraint, is_number_constraint, get_spin_constraint_info,
-    is_lie_algebra_constraint, get_lie_algebra_constraint_info,
-    is_diagonal_lie_generator, is_off_diagonal_lie_generator,
+    is_spin_constraint,
+    is_number_constraint,
+    get_spin_constraint_info,
+    is_lie_algebra_constraint,
+    get_lie_algebra_constraint_info,
+    is_diagonal_lie_generator,
+    is_off_diagonal_lie_generator,
     get_lie_generator_state_info
 
 """
@@ -111,14 +115,15 @@ function classify_base_operator(op::BaseOperator, P::Subspace)
             lie_info = get_lie_algebra_constraint_info(constraint)
             if lie_info !== nothing && t == LieAlgebraGen_
                 # Check if this operator is in the same algebra and has same name/indices
-                if op.name == lie_info.name && op.inds == lie_info.inds && 
+                if op.name == lie_info.name &&
+                   op.inds == lie_info.inds &&
                    op.algebra_id == lie_info.algebra_id
-                    
+
                     # Diagonal generators are always diagonal
                     if is_diagonal_lie_generator(op)
                         return DIAGONAL
                     end
-                    
+
                     # Off-diagonal generators: determine if they're raising or lowering
                     # based on which states they couple and what the constraint specifies
                     return classify_lie_generator_for_constraint(op, constraint)
@@ -144,7 +149,10 @@ For a constraint specifying a particular eigenstate, off-diagonal generators are
 Since Gell-Mann matrices are Hermitian, each off-diagonal generator contains both
 raising and lowering components. We return MIXED for off-diagonal Lie generators.
 """
-function classify_lie_generator_for_constraint(op::BaseOperator, constraint::OperatorConstraint)
+function classify_lie_generator_for_constraint(
+    op::BaseOperator,
+    constraint::OperatorConstraint,
+)
     # Off-diagonal Lie algebra generators are Hermitian and thus contain both
     # raising and lowering components. Return MIXED.
     # 
@@ -243,7 +251,8 @@ function find_affected_constraint(op::BaseOperator, P::Subspace)
         if is_lie_algebra_constraint(constraint)
             lie_info = get_lie_algebra_constraint_info(constraint)
             if lie_info !== nothing && t == LieAlgebraGen_
-                if op.name == lie_info.name && op.inds == lie_info.inds &&
+                if op.name == lie_info.name &&
+                   op.inds == lie_info.inds &&
                    op.algebra_id == lie_info.algebra_id
                     return i
                 end

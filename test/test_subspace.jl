@@ -56,7 +56,7 @@
 
         # Test diagonal generator identification
         @testset "Diagonal generator identification" begin
-            for i in 1:8
+            for i = 1:8
                 term, _ = first(λ[i].terms)
                 bare = term.bares.v[1]
                 if i in (7, 8)
@@ -98,11 +98,11 @@
 
         # Test state coupling info for off-diagonal generators
         @testset "Off-diagonal generator state coupling" begin
-            for i in 1:8
+            for i = 1:8
                 term, _ = first(λ[i].terms)
                 bare = term.bares.v[1]
                 state_info = get_lie_generator_state_info(bare)
-                
+
                 if i == 1 || i == 4
                     @test state_info == (1, 2)
                 elseif i == 2 || i == 5
@@ -122,7 +122,7 @@
 
         # Test diagonal generator identification
         @testset "SU(2) diagonal generator identification" begin
-            for i in 1:3
+            for i = 1:3
                 term, _ = first(σ[i].terms)
                 bare = term.bares.v[1]
                 if i == 3
@@ -141,11 +141,11 @@
 
         # Test state coupling for off-diagonal generators
         @testset "SU(2) off-diagonal generator state coupling" begin
-            for i in 1:3
+            for i = 1:3
                 term, _ = first(σ[i].terms)
                 bare = term.bares.v[1]
                 state_info = get_lie_generator_state_info(bare)
-                
+
                 if i in (1, 2)
                     @test state_info == (1, 2)
                 else
