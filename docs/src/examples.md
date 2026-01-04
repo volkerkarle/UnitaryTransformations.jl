@@ -18,7 +18,6 @@ using QuantumAlgebra
 using Symbolics
 
 QuantumAlgebra.use_σpm(true)
-UnitaryTransformations.clear_param_cache!()
 
 # Define symbolic parameters
 @variables Δ g  # Δ = detuning ω_q - ω_c, g = coupling
@@ -81,7 +80,6 @@ using QuantumAlgebra
 using Symbolics
 
 QuantumAlgebra.use_σpm(true)
-UnitaryTransformations.clear_param_cache!()
 
 # Define symbolic parameters
 @variables Δ ε  # Δ = longitudinal field (energy splitting), ε = transverse field (perturbation)
@@ -154,7 +152,6 @@ using QuantumAlgebra
 using Symbolics
 
 QuantumAlgebra.use_σpm(true)
-UnitaryTransformations.clear_param_cache!()
 
 # Define symbolic parameters
 @variables ω Δ g  # ω = oscillator frequency, Δ = qubit splitting, g = coupling
@@ -183,7 +180,137 @@ The counter-rotating terms contribute an additional frequency shift:
 \chi_{BS} \approx \frac{g^2}{\Delta + 2\omega}
 ```
 
-This is typically small (∼1% of the JC dispersive shift) but measurable in precision experiments.
+This is typically small (~1% of the JC dispersive shift) but measurable in precision experiments.
+
+---
+
+## N-Level Atom in a Cavity
+
+For atoms with more than two levels, use `nlevel_ops` from QuantumAlgebra. This example shows a 5-level atom with a single dipole-allowed transition coupled to a cavity.
+
+```julia
+using UnitaryTransformations
+using QuantumAlgebra
+using Symbolics
+
+# 5-level atom: σ[i,j] = |i⟩⟨j| transition operator
+σ5 = nlevel_ops(5, :q)
+
+# Level energies (symbolic)
+ω = [Symbolics.variable(Symbol("ω", i)) for i in 1:5]
+@variables ωc g
+
+# Hamiltonian: atom + cavity + coupling between levels 1 and 3
+H = sum(ω[i] * σ5[i,i] for i in 1:5) +    # atomic levels
+    ωc * a'()*a() +                        # cavity
+    g * (σ5[1,3] * a'() + σ5[3,1] * a())  # dipole coupling |1⟩↔|3⟩
+
+# Zero-photon subspace
+P = Subspace(a'()*a() => 0)
+
+# Perform SW transformation
+result = schrieffer_wolff(H, P; order=2)
+
+println("Generator S:")
+println(result.S)
+
+println("\nEffective Hamiltonian:")
+println(result.H_eff)
+```
+
+### Physical Interpretation
+
+The effective Hamiltonian contains:
+
+1. **Dispersive shift on cavity**: The cavity frequency shifts depending on atomic state
+   ```math
+   \chi_{13} = \frac{g^2}{\omega_1 - \omega_3 + \omega_c}
+   ```
+
+2. **AC Stark shifts on atomic levels**: Levels 1 and 3 experience light shifts proportional to ``\langle a^\dagger a \rangle``
+
+3. **Other levels unaffected**: Levels 2, 4, 5 only appear with their bare energies (to second order)
+
+---
+
+## Multi-Level Atom with Multiple Couplings
+
+A more realistic model includes multiple dipole-allowed transitions:
+
+```julia
+using UnitaryTransformations
+using QuantumAlgebra
+using Symbolics
+
+# 7-level atom
+σ7 = nlevel_ops(7, :q)
+
+# Level energies
+ω = [Symbolics.variable(Symbol("ω", i)) for i in 1:7]
+@variables ωc g₁₃ g₂₅
+
+# Hamiltonian with two transitions
+H = sum(ω[i] * σ7[i,i] for i in 1:7) +
+    ωc * a'()*a() +
+    g₁₃ * (σ7[1,3] * a'() + σ7[3,1] * a()) +  # |1⟩↔|3⟩
+    g₂₅ * (σ7[2,5] * a'() + σ7[5,2] * a())    # |2⟩↔|5⟩
+
+P = Subspace(a'()*a() => 0)
+result = schrieffer_wolff(H, P; order=2)
+
+# Extract individual dispersive shifts
+# Each transition contributes independently
+println("H_eff contains terms from both transitions")
+```
+
+### Selection Rules
+
+The SW transformation respects selection rules:
+- Only directly coupled levels acquire dispersive shifts
+- Cross-terms between different transitions appear only at higher orders
+
+---
+
+## Three-Level Lambda System (SU(3))
+
+For systems with SU(N) symmetry, the package automatically uses the matrix-element method:
+
+```julia
+using UnitaryTransformations
+using QuantumAlgebra
+using Symbolics
+
+# SU(3) generators (Gell-Mann matrices)
+λ = su_generators(3, :λ)
+
+@variables Δ Ω₁ Ω₂
+
+# Lambda system:
+# - λ₈ ~ diagonal (level splittings)
+# - λ₁, λ₂ ~ transitions between levels 1↔2
+# - λ₄, λ₅ ~ transitions between levels 1↔3
+H = Δ * λ[8] + Ω₁ * λ[1] + Ω₂ * λ[4]
+
+# Subspace with specific λ₈ eigenvalue
+P = Subspace(λ[8] => 1/sqrt(3))
+
+# Auto-detects SU(3) and uses matrix-element method
+result = schrieffer_wolff(H, P; order=2)
+
+println("Generator:")
+println(result.S)
+println("\nEffective Hamiltonian:")
+println(result.H_eff)
+```
+
+### When to Use SU(N) vs N-Level
+
+| Approach | Use When |
+|----------|----------|
+| `nlevel_ops` | Physical multilevel atoms, specific transitions |
+| `su_generators` | Systems with SU(N) symmetry, collective operators |
+
+Both approaches give equivalent physics but may produce differently structured results.
 
 ---
 
@@ -196,6 +323,17 @@ cd UnitaryTransformations.jl
 julia --project examples/jaynes_cummings_dispersive.jl
 julia --project examples/two_level_system.jl
 julia --project examples/rabi_bloch_siegert.jl
+julia --project examples/three_level_atom.jl
 ```
 
 Each example includes detailed physical interpretation and numerical verification.
+
+---
+
+## Tips for New Examples
+
+1. **Start simple**: Begin with a minimal Hamiltonian and add complexity
+2. **Check subspace definition**: The choice of ``P`` determines the entire structure
+3. **Verify with limits**: Check known limits (e.g., ``g \to 0``)
+4. **Use `collect_terms`**: Helps identify the physical meaning of each term
+5. **Compare orders**: Running at different orders helps assess convergence

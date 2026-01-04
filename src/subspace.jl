@@ -6,6 +6,7 @@ For example, `Subspace(σz() => -1)` defines the spin-down subspace.
 """
 
 export Subspace, OperatorConstraint, get_spin_constraint_info
+export is_lie_algebra_constraint, get_lie_algebra_constraint_info
 
 using QuantumAlgebra
 using QuantumAlgebra:
@@ -23,6 +24,10 @@ using QuantumAlgebra:
     BosonDestroy_,
     FermionCreate_,
     FermionDestroy_,
+    LieAlgebraGen_,
+    SU2_ALGEBRA_ID,
+    SU3_ALGEBRA_ID,
+    is_lie_algebra_gen,
     normal_form,
     comm
 
@@ -199,4 +204,157 @@ Check if two operators have the same name and indices.
 """
 function operators_match_indices(op1::BaseOperator, op2::BaseOperator)
     return op1.name == op2.name && op1.inds == op2.inds
+end
+
+# =============================================================================
+# SU(N) / Lie Algebra Constraint Support
+# =============================================================================
+
+"""
+    is_lie_algebra_constraint(c::OperatorConstraint)
+
+Check if a constraint is on a Lie algebra generator (e.g., SU(2) or SU(3) generator).
+This applies to diagonal generators which can label subspaces.
+
+For SU(N), the diagonal generators (Cartan subalgebra) are:
+- SU(2): Generator 3 (σ₃/2)
+- SU(3): Generators 7 and 8 (λ₇, λ₈ in our convention)
+"""
+function is_lie_algebra_constraint(c::OperatorConstraint)
+    op = c.operator
+
+    # Check if single term with single Lie algebra generator
+    if length(op.terms) == 1
+        term, coeff = first(op.terms)
+        if coeff == 1 && length(term.bares.v) == 1
+            bare = term.bares.v[1]
+            if bare.t == LieAlgebraGen_
+                # Only diagonal generators can be used as constraints
+                return is_diagonal_lie_generator(bare)
+            end
+        end
+    end
+
+    return false
+end
+
+"""
+    is_diagonal_lie_generator(op::BaseOperator)
+
+Check if a Lie algebra generator is diagonal (belongs to the Cartan subalgebra).
+
+For SU(N), the diagonal generators are those with indices n² - N + 1 to n² - 1
+in the generalized Gell-Mann basis, corresponding to traceless diagonal matrices.
+
+Specifically:
+- SU(2): Generator 3 is diagonal (σ₃/2)
+- SU(3): Generators 7 and 8 are diagonal
+- SU(N): The last N-1 generators are diagonal
+"""
+function is_diagonal_lie_generator(op::BaseOperator)
+    op.t == LieAlgebraGen_ || return false
+
+    algebra_id = op.algebra_id
+    gen_idx = op.gen_idx
+
+    # Determine N from algebra_id
+    # SU2_ALGEBRA_ID = 1 → N = 2
+    # SU3_ALGEBRA_ID = 2 → N = 3
+    # For general SU(N), we need to know how algebra_id maps to N
+
+    if algebra_id == SU2_ALGEBRA_ID
+        # SU(2): N=2, diagonal generators are {3} (only σ₃)
+        return gen_idx == 3
+    elseif algebra_id == SU3_ALGEBRA_ID
+        # SU(3): N=3, diagonal generators are {7, 8}
+        return gen_idx in (7, 8)
+    else
+        # For general SU(N), diagonal generators are the last N-1
+        # Assuming algebra_id encodes N somehow, or we can compute from max gen_idx
+        # For now, return false for unknown algebras
+        return false
+    end
+end
+
+"""
+    is_off_diagonal_lie_generator(op::BaseOperator)
+
+Check if a Lie algebra generator is off-diagonal (not in the Cartan subalgebra).
+These generators connect different states and can raise/lower quantum numbers.
+"""
+function is_off_diagonal_lie_generator(op::BaseOperator)
+    op.t == LieAlgebraGen_ || return false
+    return !is_diagonal_lie_generator(op)
+end
+
+"""
+    get_lie_algebra_constraint_info(c::OperatorConstraint)
+
+Extract information about a Lie algebra constraint.
+
+Returns a NamedTuple with fields:
+- `name`: The generator name (Symbol)
+- `inds`: The generator indices
+- `algebra_id`: The algebra ID (SU2, SU3, etc.)
+- `gen_idx`: The generator index within the algebra
+- `eigenvalue`: The constraint eigenvalue
+
+Returns `nothing` if not a Lie algebra constraint.
+"""
+function get_lie_algebra_constraint_info(c::OperatorConstraint)
+    is_lie_algebra_constraint(c) || return nothing
+
+    term, _ = first(c.operator.terms)
+    bare = term.bares.v[1]
+
+    return (
+        name = bare.name,
+        inds = bare.inds,
+        algebra_id = bare.algebra_id,
+        gen_idx = bare.gen_idx,
+        eigenvalue = c.eigenvalue
+    )
+end
+
+"""
+    get_lie_generator_state_info(op::BaseOperator)
+
+For an off-diagonal SU(N) generator, determine which states it couples.
+Returns `(from_state, to_state)` where states are 1-indexed.
+
+For SU(3) with our Gell-Mann matrix convention:
+- λ₁: couples states 1 ↔ 2 (symmetric, real off-diagonal)
+- λ₂: couples states 1 ↔ 3
+- λ₃: couples states 2 ↔ 3
+- λ₄: couples states 1 ↔ 2 (antisymmetric, imaginary off-diagonal)
+- λ₅: couples states 1 ↔ 3
+- λ₆: couples states 2 ↔ 3
+
+Returns `nothing` for diagonal generators or unknown algebras.
+"""
+function get_lie_generator_state_info(op::BaseOperator)
+    op.t == LieAlgebraGen_ || return nothing
+
+    algebra_id = op.algebra_id
+    gen_idx = op.gen_idx
+
+    if algebra_id == SU2_ALGEBRA_ID
+        # SU(2): generators 1 and 2 couple states 1 ↔ 2
+        if gen_idx == 1 || gen_idx == 2
+            return (1, 2)
+        end
+        return nothing  # Generator 3 is diagonal
+    elseif algebra_id == SU3_ALGEBRA_ID
+        # SU(3) off-diagonal generators
+        if gen_idx == 1 || gen_idx == 4
+            return (1, 2)  # λ₁, λ₄ couple states 1 and 2
+        elseif gen_idx == 2 || gen_idx == 5
+            return (1, 3)  # λ₂, λ₅ couple states 1 and 3
+        elseif gen_idx == 3 || gen_idx == 6
+            return (2, 3)  # λ₃, λ₆ couple states 2 and 3
+        end
+        return nothing  # Generators 7, 8 are diagonal
+    end
+
+    return nothing
 end

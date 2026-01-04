@@ -1,41 +1,26 @@
 # UnitaryTransformations.jl
 
-A Julia package for performing symbolic Schrieffer-Wolff transformations on quantum Hamiltonians.
+A Julia package for performing symbolic unitary transformations on quantum Hamiltonians.
 
 ## Overview
 
-The **Schrieffer-Wolff transformation** is a powerful perturbative technique for deriving effective low-energy Hamiltonians. Given a quantum system with well-separated energy scales, it systematically eliminates high-energy degrees of freedom while capturing their effects through renormalized parameters.
+Unitary transformations are essential tools in quantum mechanics for:
 
-This package provides:
+- **Simplifying Hamiltonians** by eliminating unwanted couplings
+- **Deriving effective theories** that capture low-energy physics
+- **Block-diagonalizing** systems with separated energy scales
+- **Changing to more convenient representations** (e.g., polaron frame)
 
-- **Symbolic computation** of effective Hamiltonians
-- **Automatic commutator algebra** for bosons, fermions, and spins  
-- **Proper energy denominators** like `g²/Δ` using Symbolics.jl
-- **Projection** onto chosen low-energy subspaces
+This package provides symbolic implementations that produce analytical expressions rather than numerical results. For example, the dispersive shift in circuit QED is computed as `-g²/Δ`, not as a floating-point number.
 
-### When to Use Schrieffer-Wolff
+## Available Transformations
 
-The transformation is ideal when:
-
-1. Your Hamiltonian has a **small perturbation** coupling different energy sectors
-2. You want to work in a **reduced subspace** (e.g., ground state manifold)
-3. You need **analytical expressions** for effective parameters
-
-Common applications include:
-- Dispersive readout in circuit QED
-- Exchange interactions from virtual hopping (t-J model from Hubbard)
-- Effective spin models from electronic systems
-
-## Installation
-
-```julia
-using Pkg
-Pkg.add(url="https://github.com/volkerkarle/UnitaryTransformations.jl")
-```
-
-The package will automatically install its dependencies:
-- [QuantumAlgebra.jl](https://github.com/volkerkarle/QuantumAlgebra.jl) - Symbolic quantum operator algebra
-- [Symbolics.jl](https://github.com/JuliaSymbolics/Symbolics.jl) - Computer algebra system
+| Transformation | Purpose | Status |
+|----------------|---------|--------|
+| [**Schrieffer-Wolff**](@ref sw_transformation) | Block-diagonalize Hamiltonians, derive effective low-energy theories | ✓ Implemented |
+| **Lang-Firsov** | Eliminate linear electron-phonon coupling (polaron frame) | Planned |
+| **Bogoliubov** | Diagonalize quadratic bosonic Hamiltonians | Planned |
+| **Holstein-Primakoff** | Map spin operators to bosonic operators | Planned |
 
 ## Quick Start
 
@@ -44,48 +29,89 @@ using UnitaryTransformations
 using QuantumAlgebra
 using Symbolics
 
-# Use σ± basis (recommended for SW transformations)
+# Use σ± basis (recommended)
 QuantumAlgebra.use_σpm(true)
 
 # Define symbolic parameters
-@variables Δ g  # Δ = energy splitting, g = coupling strength
+@variables Δ g
 
 # Jaynes-Cummings Hamiltonian
 H = Δ/2 * σz() + g * (a'()*σm() + a()*σp())
 
-# Define the low-energy subspace (qubit in ground state)
-P = Subspace(σz() => -1)
+# Define the low-energy subspace
+P = Subspace(σz() => -1)  # qubit ground state
 
 # Perform Schrieffer-Wolff transformation
 result = schrieffer_wolff(H, P; order=2)
 
-# The effective Hamiltonian in the ground state subspace
+# The effective Hamiltonian
 println(result.H_P)
-# Output: -0.5Δ + (-(g^2))/Δ a†a
+# Output: -Δ/2 + (-g²/Δ) a†a
 ```
 
-## Package Structure
+## Supported Quantum Systems
 
+The package works with a variety of quantum systems provided by [QuantumAlgebra.jl](https://github.com/jfeist/QuantumAlgebra.jl):
+
+| System | Operators | Example |
+|--------|-----------|---------|
+| **Two-level systems** | `σx()`, `σy()`, `σz()`, `σp()`, `σm()` | Qubits, spin-1/2 |
+| **Bosonic modes** | `a()`, `a'()` | Cavities, phonons |
+| **N-level atoms** | `nlevel_ops(N, :name)` | Multi-level atoms |
+| **SU(N) systems** | `su_generators(N, :name)` | 3-level Λ systems |
+| **Fermions** | `f(:name)`, `f'(:name)` | Electrons |
+
+These can be combined freely—for example, an N-level atom coupled to a bosonic cavity.
+
+## Installation
+
+```julia
+using Pkg
+Pkg.add(url="https://github.com/volkerkarle/UnitaryTransformations.jl")
 ```
-UnitaryTransformations.jl/
-├── src/
-│   ├── UnitaryTransformations.jl  # Main module
-│   ├── subspace.jl                # Subspace type definition
-│   ├── decompose.jl               # H → H_d + V_od decomposition
-│   ├── commutator_series.jl       # BCH expansion
-│   ├── inverse_liouvillian.jl     # Solve [S, H_d] = -V_od
-│   ├── schrieffer_wolff.jl        # Main SW algorithm
-│   └── symbolic_utils.jl          # Simplification utilities
-├── examples/
-│   ├── jaynes_cummings_dispersive.jl
-│   ├── two_level_system.jl
-│   └── rabi_bloch_siegert.jl
-└── test/
-    └── runtests.jl
+
+Dependencies (automatically installed):
+- [QuantumAlgebra.jl](https://github.com/jfeist/QuantumAlgebra.jl) — Symbolic quantum operator algebra
+- [Symbolics.jl](https://github.com/JuliaSymbolics/Symbolics.jl) — Computer algebra system
+
+## Documentation Structure
+
+```@contents
+Pages = ["theory.md", "tutorial.md", "examples.md", "api.md"]
+Depth = 1
 ```
 
-## Next Steps
+### [Theory](@ref theory)
+Mathematical background on unitary transformations, including the Schrieffer-Wolff method and the Baker-Campbell-Hausdorff formula.
 
-- See the [Tutorial](@ref tutorial) for a step-by-step guide
-- Check the [Examples](@ref examples) for physics applications
-- Browse the [API Reference](@ref api) for function documentation
+### [Tutorial](@ref tutorial)
+Step-by-step guide to using the Schrieffer-Wolff transformation.
+
+### [Examples](@ref examples)
+Physics applications: Jaynes-Cummings, Rabi model, multi-level atoms.
+
+### [API Reference](@ref api)
+Complete function documentation.
+
+## Package Philosophy
+
+1. **Symbolic over numeric**: Results are analytical expressions that can be simplified, manipulated, and substituted.
+
+2. **Automatic method selection**: The package chooses the optimal algorithm based on the operator types present.
+
+3. **Extensible design**: New transformations can be added as separate modules while sharing the infrastructure.
+
+4. **Verified correctness**: Extensive tests verify mathematical identities and compare with known results.
+
+## Citation
+
+If you use this package in your research:
+
+```bibtex
+@software{UnitaryTransformations.jl,
+  author = {Karle, Volker},
+  title = {UnitaryTransformations.jl: Symbolic Unitary Transformations for Quantum Hamiltonians},
+  url = {https://github.com/volkerkarle/UnitaryTransformations.jl},
+  year = {2025}
+}
+```

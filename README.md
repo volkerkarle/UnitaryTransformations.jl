@@ -3,20 +3,21 @@
 [![Build Status](https://github.com/volkerkarle/UnitaryTransformations.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/volkerkarle/UnitaryTransformations.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://volkerkarle.github.io/UnitaryTransformations.jl/dev/)
 [![Code Style: Blue](https://img.shields.io/badge/code%20style-blue-4495d1.svg)](https://github.com/JuliaDiff/BlueStyle)
-[![Julia 1.12+](https://img.shields.io/badge/Julia-1.12+-blue.svg)](https://julialang.org/)
 
-A Julia package for performing symbolic Schrieffer-Wolff transformations on quantum Hamiltonians.
+A Julia package for performing **symbolic unitary transformations** on quantum Hamiltonians.
 
-## What is this?
+## Overview
 
-**Schrieffer-Wolff transformation** is a perturbative method to block-diagonalize quantum Hamiltonians with well-separated energy scales. Given a Hamiltonian `H = H₀ + V` where `V` couples different energy sectors, the transformation finds an effective Hamiltonian `H_eff` that acts only within a chosen subspace.
+Unitary transformations are fundamental tools in quantum mechanics for simplifying Hamiltonians, eliminating unwanted couplings, and deriving effective low-energy theories. This package provides symbolic implementations of several important transformations:
 
-This package provides:
-- **Symbolic computation** of effective Hamiltonians with proper energy denominators
-- **Automatic handling** of commutator algebra for bosons, fermions, and spins
-- **Integration with Symbolics.jl** for clean expressions like `g²/Δ`
+| Transformation | Purpose | Status |
+|----------------|---------|--------|
+| **Schrieffer-Wolff** | Block-diagonalize H, derive effective low-energy Hamiltonians | Implemented |
+| **Lang-Firsov** | Eliminate linear electron-phonon coupling (polaron transformation) | Planned |
+| **Bogoliubov** | Diagonalize quadratic bosonic Hamiltonians | Planned |
+| **Holstein-Primakoff** | Map spin operators to bosonic operators | Planned |
 
-Built on [QuantumAlgebra.jl](https://github.com/volkerkarle/QuantumAlgebra.jl) for symbolic quantum operator algebra.
+Built on [QuantumAlgebra.jl](https://github.com/jfeist/QuantumAlgebra.jl) for symbolic quantum operator algebra and [Symbolics.jl](https://github.com/JuliaSymbolics/Symbolics.jl) for symbolic mathematics.
 
 ## Installation
 
@@ -25,159 +26,178 @@ using Pkg
 Pkg.add(url="https://github.com/volkerkarle/UnitaryTransformations.jl")
 ```
 
-## Quick Start
+## Quick Example: Dispersive Readout
 
-### Jaynes-Cummings Dispersive Shift
-
-The classic application: a qubit coupled to a cavity in the dispersive regime.
+The Schrieffer-Wolff transformation derives the dispersive Hamiltonian used for qubit readout in circuit QED:
 
 ```julia
 using UnitaryTransformations, QuantumAlgebra, Symbolics
 
-# Use σ± basis for clean results
 QuantumAlgebra.use_σpm(true)
+@variables Δ g  # Δ = detuning, g = coupling
 
-# Define symbolic parameters
-@variables Δ g  # Δ = qubit-cavity detuning, g = coupling strength
-
-# Define Hamiltonian: H = Δ/2 σz + g(a†σ⁻ + a σ⁺)
+# Jaynes-Cummings Hamiltonian
 H = Δ/2 * σz() + g * (a'()*σm() + a()*σp())
 
-# Define subspace: qubit in ground state
-P = Subspace(σz() => -1)
-
-# Perform Schrieffer-Wolff to second order
+# Transform to eliminate qubit-cavity coupling
+P = Subspace(σz() => -1)  # qubit ground state
 result = schrieffer_wolff(H, P; order=2)
 
-# Effective Hamiltonian projected to ground state subspace
 println(result.H_P)
-# Output: -0.5Δ + (-g²/Δ) a†a
-#                  ^^^^^^
-#         This is the dispersive shift χ = -g²/Δ
+# Output: -Δ/2 + (-g²/Δ) a†a
+#                 ^^^^^^ dispersive shift χ = -g²/Δ
 ```
 
-### Two-Level System
+## Supported Quantum Systems
 
-A spin in longitudinal and transverse fields:
+The package handles a wide range of quantum systems:
+
+| System Type | Operators | Example Use |
+|-------------|-----------|-------------|
+| **Two-level systems** | `σx()`, `σy()`, `σz()`, `σp()`, `σm()` | Qubits, spin-1/2 |
+| **Bosonic modes** | `a()`, `a'()` | Cavities, phonons |
+| **N-level atoms** | `nlevel_ops(N, :name)` | Multi-level atoms, transmons |
+| **SU(N) algebras** | `su_generators(N, :name)` | Collective spin, Lambda systems |
+| **Hybrid systems** | Combinations | Atom + cavity, spin + phonon |
+
+### Example: Multi-Level Atom + Cavity
 
 ```julia
 using UnitaryTransformations, QuantumAlgebra, Symbolics
 
-QuantumAlgebra.use_σpm(true)
+# 5-level atom with transition operators σ[i,j] = |i⟩⟨j|
+σ5 = nlevel_ops(5, :q)
 
-# Define symbolic parameters
-@variables Δ ε
+# Symbolic level energies
+ω = [Symbolics.variable(Symbol("ω", i)) for i in 1:5]
+@variables ωc g
 
-# H = Δ/2 σz + ε σx  (where σx = σ⁺ + σ⁻)
-H = Δ/2 * σz() + ε * (σp() + σm())
-P = Subspace(σz() => -1)
+# Atom + cavity + dipole coupling between levels 1↔3
+H = sum(ω[i] * σ5[i,i] for i in 1:5) + ωc * a'()*a() + 
+    g * (σ5[1,3] * a'() + σ5[3,1] * a())
 
+# SW transformation in cavity vacuum
+P = Subspace(a'()*a() => 0)
 result = schrieffer_wolff(H, P; order=2)
 
-# Ground state energy: E = -Δ/2 - ε²/Δ
-# (matches 2nd-order perturbation theory)
-println(collect_terms(result.H_P))
+# Result: dispersive shifts, AC Stark corrections
 ```
 
 ## Key Features
 
-### Symbolic Energy Denominators
+### Symbolic Results
 
-Unlike numerical approaches, this package produces symbolic results with proper energy denominators:
+Unlike numerical approaches, this package produces **analytical expressions**:
 
 ```julia
-# The dispersive shift is computed symbolically
 χ = extract_coefficient(result.H_P, a'()*a())
-# Returns: -(g^2) / Δ
+# Returns: -g²/Δ  (symbolic, not floating-point!)
 ```
 
-### Simplification and Substitution
+### Automatic Method Selection
+
+The package automatically chooses the optimal algorithm based on operator types:
+
+| Operator Type | Method | Description |
+|---------------|--------|-------------|
+| TLS, bosons, N-level | Eigenoperator | Uses `[H₀, O] = εO` structure |
+| SU(N) generators | Matrix-element | Works in Cartan-Weyl basis |
+
+### Arbitrary Perturbation Order
 
 ```julia
-# Simplify coefficients
-H_simplified = simplify_coefficients(result.H_eff)
-
-# Substitute numerical values
-H_numeric = substitute_values(result.H_P, Dict(:g => 0.1, :Δ => 1.0))
+result_2nd = schrieffer_wolff(H, P; order=2)
+result_4th = schrieffer_wolff(H, P; order=4)  # Higher accuracy
 ```
 
-### Verified Against Exact Solutions
+### Verified Implementation
 
-The package has been rigorously tested:
-- Generator equation `[S, H_d] = -V_od` verified to be exactly satisfied
-- Numerical results match exact eigenvalues to <0.02% for ε/Δ = 0.1
-- Dispersive shift correctly gives `-g²/Δ`
+- Generator equation `[S, H₀] = -V` verified exactly
+- Numerical accuracy <0.02% in perturbative regime
+- 147 tests covering TLS, bosons, SU(3), and N-level systems
 
-## Examples
+## Documentation
 
-See the `examples/` folder for complete worked examples:
+- **[Tutorial](https://volkerkarle.github.io/UnitaryTransformations.jl/dev/tutorial/)**: Step-by-step introduction
+- **[Theory](https://volkerkarle.github.io/UnitaryTransformations.jl/dev/theory/)**: Mathematical foundations (BCH, SW derivation)
+- **[Examples](https://volkerkarle.github.io/UnitaryTransformations.jl/dev/examples/)**: Physics applications (JC, Rabi, N-level)
+- **[API Reference](https://volkerkarle.github.io/UnitaryTransformations.jl/dev/api/)**: Function documentation
 
-- **`jaynes_cummings_dispersive.jl`** - Qubit-cavity dispersive shift (circuit QED)
-- **`two_level_system.jl`** - Spin in transverse field with exact solution comparison  
-- **`rabi_bloch_siegert.jl`** - Full Rabi model including counter-rotating terms
+## Transformations
 
-## API Overview
+### Schrieffer-Wolff (Implemented)
 
-### Core Functions
-
-| Function | Description |
-|----------|-------------|
-| `schrieffer_wolff(H, P; order=2)` | Main SW transformation |
-| `Subspace(σz() => -1)` | Define low-energy subspace |
-| `decompose(H, P)` | Split H into diagonal/off-diagonal parts |
-| `solve_for_generator(H_d, V_od, P)` | Find generator S |
-
-### Result Structure
-
-`schrieffer_wolff` returns a named tuple with:
-- `H_eff` - Block-diagonal effective Hamiltonian
-- `S` - Generator of the transformation
-- `H_P` - H_eff projected onto subspace P
-
-### Utility Functions
-
-| Function | Description |
-|----------|-------------|
-| `simplify_coefficients(expr)` | Simplify Symbolics coefficients |
-| `substitute_values(expr, Dict(...))` | Substitute numerical values |
-| `extract_coefficient(expr, op)` | Extract coefficient of operator |
-| `collect_terms(expr)` | List all terms with coefficients |
-
-## Theory
-
-The Schrieffer-Wolff transformation finds a unitary `U = e^S` such that:
+Finds a unitary U = eˢ that block-diagonalizes H = H₀ + V:
 
 ```
-H_eff = e^S H e^{-S} = H + [S,H] + ½[S,[S,H]] + ...
+H_eff = eˢ H e⁻ˢ = H₀ + ½[S, V] + O(V³)
 ```
 
-is block-diagonal with respect to a chosen subspace P. The generator S is determined by solving:
+The generator S satisfies `[S, H₀] = -V`. 
+
+**Applications**:
+- Dispersive readout in circuit QED
+- Exchange interactions (t-J model from Hubbard)
+- Effective spin models
+- Adiabatic elimination of fast modes
+
+### Lang-Firsov (Planned)
+
+Eliminates linear electron-phonon coupling via phonon displacement:
 
 ```
-[S, H_d] = -V_od
+U = exp(∑ₖ gₖ/ωₖ (bₖ† - bₖ) n)
 ```
 
-where `H_d` is the diagonal part and `V_od` is the off-diagonal perturbation.
+**Applications**: Polarons, phonon sidebands, Franck-Condon physics
+
+### Bogoliubov (Planned)
+
+Diagonalizes quadratic bosonic Hamiltonians:
+
+```
+H = ∑ₖ ωₖ aₖ†aₖ + Δₖ(aₖa₋ₖ + h.c.)  →  H = ∑ₖ Ωₖ βₖ†βₖ
+```
+
+**Applications**: BCS superconductivity, squeezed states, magnons
+
+### Holstein-Primakoff (Planned)
+
+Maps spin-S operators to bosons for large-S expansions:
+
+```
+S⁺ → √(2S) √(1 - a†a/2S) a
+```
+
+**Applications**: Spin waves, magnon-polaritons
 
 ## Requirements
 
-- Julia 1.12+
-- QuantumAlgebra.jl (automatically installed)
-- Symbolics.jl (automatically installed)
+- Julia 1.10+
+- [QuantumAlgebra.jl](https://github.com/jfeist/QuantumAlgebra.jl) (with SU(N) support)
+- [Symbolics.jl](https://github.com/JuliaSymbolics/Symbolics.jl)
 
 ## License
 
-GPL-3.0
+MIT
 
 ## Citation
-
-If you use this package in your research, please cite:
 
 ```bibtex
 @software{UnitaryTransformations.jl,
   author = {Karle, Volker},
-  title = {UnitaryTransformations.jl: Symbolic Schrieffer-Wolff Transformations},
+  title = {UnitaryTransformations.jl: Symbolic Unitary Transformations for Quantum Hamiltonians},
   url = {https://github.com/volkerkarle/UnitaryTransformations.jl},
-  year = {2024}
+  year = {2025}
 }
 ```
+
+## Contributing
+
+Contributions are welcome! Particularly for:
+- New transformation types (Lang-Firsov, Bogoliubov, Holstein-Primakoff)
+- Additional physics examples
+- Performance improvements
+- Documentation enhancements
+
+Please open an issue to discuss before submitting a PR.

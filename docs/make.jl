@@ -21,11 +21,12 @@ makedocs(;
     ),
     pages = [
         "Home" => "index.md",
+        "Theory" => "theory.md",
         "Tutorial" => "tutorial.md",
         "Examples" => "examples.md",
         "API Reference" => "api.md",
     ],
-    warnonly = [:missing_docs, :cross_references],
+    warnonly = [:missing_docs, :cross_references, :docs_block],
 )
 
 deploydocs(;

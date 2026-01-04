@@ -1,30 +1,25 @@
 # [Tutorial](@id tutorial)
 
-This tutorial walks through the Schrieffer-Wolff transformation step by step.
+This tutorial walks through the Schrieffer-Wolff transformation step by step. For the mathematical background, see the [Theory](@ref theory) page.
 
-## The Problem
+## Overview
 
-Consider a quantum system with Hamiltonian:
+The Schrieffer-Wolff (SW) transformation finds an effective Hamiltonian that acts within a chosen subspace by perturbatively eliminating couplings to other subspaces. This is useful when:
 
-```math
-H = H_0 + V
-```
-
-where ``H_0`` has well-separated energy eigenspaces and ``V`` is a perturbation that couples them. We want to find an effective Hamiltonian ``H_{\text{eff}}`` that:
-
-1. Acts only within a chosen low-energy subspace ``P``
-2. Captures the effects of ``V`` to a given order in perturbation theory
+- You have a system with well-separated energy scales
+- You want to derive an effective low-energy theory
+- You need analytical expressions for perturbative corrections
 
 ## Step 1: Set Up the System
 
-Let's work with a concrete example: a two-level system (qubit) coupled to a harmonic oscillator.
+Let's work with a concrete example: a two-level system (qubit) coupled to a harmonic oscillator (the Jaynes-Cummings model).
 
 ```julia
 using UnitaryTransformations
 using QuantumAlgebra
 using Symbolics
 
-# Use σ± basis - this is important for SW to work correctly!
+# Use σ± basis - important for SW to work correctly with spins
 QuantumAlgebra.use_σpm(true)
 
 # Define symbolic parameters
@@ -35,8 +30,8 @@ H = Δ/2 * σz() + g * (a'()*σm() + a()*σp())
 ```
 
 The Hamiltonian describes:
-- A qubit with splitting ``Δ`` (the ``σ_z`` term)
-- Coupling to an oscillator mode (the ``a^\dagger σ^-`` and ``a σ^+`` terms)
+- A qubit with splitting ``\Delta`` (the ``\sigma_z`` term)
+- Coupling to an oscillator mode (the ``a^\dagger \sigma^-`` and ``a \sigma^+`` terms)
 
 ## Step 2: Define the Subspace
 
@@ -47,9 +42,18 @@ We need to specify which states belong to the low-energy subspace ``P``. For thi
 P = Subspace(σz() => -1)
 ```
 
-The `Subspace` type specifies expectation values of operators in the subspace. Here, we say that in subspace ``P``, the operator ``σ_z`` has eigenvalue ``-1``.
+The `Subspace` type specifies expectation values of operators in the subspace. Here, we say that in subspace ``P``, the operator ``\sigma_z`` has eigenvalue ``-1``.
 
-## Step 3: Decompose the Hamiltonian
+### Multiple Constraints
+
+For more complex systems, you can specify multiple constraints:
+
+```julia
+# Subspace with qubit ground state AND zero photons
+P = Subspace(σz() => -1, a'()*a() => 0)
+```
+
+## Step 3: Understand the Decomposition
 
 The SW transformation requires splitting ``H`` into diagonal and off-diagonal parts with respect to ``P``:
 
@@ -66,21 +70,31 @@ Diagonal:     -0.5Δ + Δ σ⁺σ⁻
 Off-diagonal: g a†σ⁻ + g a σ⁺
 ```
 
-- **Diagonal** (``H_d``): Operators that don't change the subspace (like ``σ^+σ^-``, ``a^\dagger a``)
-- **Off-diagonal** (``V_{od}``): Operators that connect ``P`` and ``Q`` subspaces (like ``σ^+``, ``σ^-``)
+- **Diagonal** (``H_d``): Operators that don't change the subspace (like ``\sigma^+\sigma^-``, ``a^\dagger a``)
+- **Off-diagonal** (``V_{od}``): Operators that connect ``P`` and ``Q`` subspaces (like ``\sigma^+``, ``\sigma^-``)
 
 ## Step 4: Perform the Transformation
 
-Now we apply the Schrieffer-Wolff transformation:
+Now apply the Schrieffer-Wolff transformation:
 
 ```julia
 result = schrieffer_wolff(H, P; order=2)
 ```
 
 This returns a named tuple with:
-- `result.S` - The generator of the unitary transformation
+- `result.S` - The generator of the unitary transformation ``e^S``
 - `result.H_eff` - The block-diagonal effective Hamiltonian
 - `result.H_P` - The effective Hamiltonian projected onto subspace ``P``
+
+### Higher Orders
+
+You can go to higher orders for more accuracy:
+
+```julia
+result_4th = schrieffer_wolff(H, P; order=4)
+```
+
+Note: Higher orders produce more complex expressions and take longer to compute.
 
 ## Step 5: Analyze the Results
 
@@ -91,7 +105,7 @@ println("Generator S = ", result.S)
 # S = (g/Δ) a†σ⁻ + (-g/Δ) a σ⁺
 ```
 
-The generator ``S`` is anti-Hermitian (``S^\dagger = -S``) and satisfies the fundamental equation:
+The generator ``S`` is anti-Hermitian (``S^\dagger = -S``) and satisfies:
 
 ```math
 [S, H_d] = -V_{od}
@@ -128,7 +142,7 @@ This is the **dispersive Hamiltonian**: the cavity frequency is shifted by ``-g^
 
 ## Step 6: Extract Physical Parameters
 
-Use the utility functions to extract specific coefficients:
+Use utility functions to extract specific coefficients:
 
 ```julia
 # Get the dispersive shift (coefficient of a†a)
@@ -175,8 +189,69 @@ end
 # Extract dispersive shift
 χ = extract_coefficient(result.H_P, a'()*a())
 println("\nDispersive shift: χ = ", χ)
-println("Expected: -g²/Δ ✓")
+println("Expected: -g²/Δ")
 ```
+
+---
+
+## N-Level Atoms
+
+The package supports N-level atomic systems using QuantumAlgebra's `nlevel_ops`:
+
+```julia
+using UnitaryTransformations
+using QuantumAlgebra
+using Symbolics
+
+# Create 5-level atom operators: σ[i,j] = |i⟩⟨j|
+σ5 = nlevel_ops(5, :q)
+
+# Define level energies and coupling
+ω = [Symbolics.variable(Symbol("ω", i)) for i in 1:5]
+@variables ωc g
+
+# Hamiltonian: 5-level atom + cavity, coupling levels 1↔3
+H = sum(ω[i] * σ5[i,i] for i in 1:5) + 
+    ωc * a'()*a() + 
+    g * (σ5[1,3] * a'() + σ5[3,1] * a())
+
+# Zero-photon subspace
+P = Subspace(a'()*a() => 0)
+
+result = schrieffer_wolff(H, P; order=2)
+println("Effective Hamiltonian:")
+println(result.H_eff)
+```
+
+The result contains dispersive shifts and AC Stark corrections for all levels.
+
+---
+
+## SU(N) Systems
+
+For systems described by SU(N) Lie algebras, the package automatically detects and uses the matrix-element method:
+
+```julia
+using UnitaryTransformations
+using QuantumAlgebra
+using Symbolics
+
+# SU(3) generators (Gell-Mann matrices)
+λ = su_generators(3, :λ)
+
+@variables Δ ω g
+
+# Three-level Lambda system
+H = Δ * λ[8] + ω * λ[7] + g * λ[2]
+
+# Subspace defined by λ₈ eigenvalue
+P = Subspace(λ[8] => 0.5)
+
+# Automatically uses matrix-element method for SU(3)
+result = schrieffer_wolff(H, P; order=2)
+```
+
+---
 
 ## Key Points
 
@@ -184,3 +259,10 @@ println("Expected: -g²/Δ ✓")
 2. **Define subspace carefully** - this determines what "diagonal" means
 3. **Use `collect_terms`** to see simplified coefficients
 4. **The physics is in the coefficients** - extract them with `extract_coefficient`
+5. **N-level and SU(N) systems** are automatically handled with appropriate methods
+
+## Next Steps
+
+- See [Examples](@ref examples) for complete physics applications
+- See [Theory](@ref theory) for mathematical details
+- See [API Reference](@ref api) for function documentation

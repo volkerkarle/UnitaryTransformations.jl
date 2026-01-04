@@ -25,11 +25,17 @@ using QuantumAlgebra:
     BosonDestroy_,
     FermionCreate_,
     FermionDestroy_,
+    LieAlgebraGen_,
+    SU2_ALGEBRA_ID,
+    SU3_ALGEBRA_ID,
     normal_form,
     QuOpName
 
 import ..UnitaryTransformations:
-    is_spin_constraint, is_number_constraint, get_spin_constraint_info
+    is_spin_constraint, is_number_constraint, get_spin_constraint_info,
+    is_lie_algebra_constraint, get_lie_algebra_constraint_info,
+    is_diagonal_lie_generator, is_off_diagonal_lie_generator,
+    get_lie_generator_state_info
 
 """
     OperatorClass
@@ -99,10 +105,53 @@ function classify_base_operator(op::BaseOperator, P::Subspace)
                 end
             end
         end
+
+        # For Lie algebra constraints (SU(N) generators)
+        if is_lie_algebra_constraint(constraint)
+            lie_info = get_lie_algebra_constraint_info(constraint)
+            if lie_info !== nothing && t == LieAlgebraGen_
+                # Check if this operator is in the same algebra and has same name/indices
+                if op.name == lie_info.name && op.inds == lie_info.inds && 
+                   op.algebra_id == lie_info.algebra_id
+                    
+                    # Diagonal generators are always diagonal
+                    if is_diagonal_lie_generator(op)
+                        return DIAGONAL
+                    end
+                    
+                    # Off-diagonal generators: determine if they're raising or lowering
+                    # based on which states they couple and what the constraint specifies
+                    return classify_lie_generator_for_constraint(op, constraint)
+                end
+            end
+        end
     end
 
     # Operator doesn't affect any constraint - it's "transparent" (diagonal)
     return DIAGONAL
+end
+
+"""
+    classify_lie_generator_for_constraint(op::BaseOperator, constraint::OperatorConstraint)
+
+Classify an off-diagonal Lie algebra generator relative to a constraint.
+
+For a constraint specifying a particular eigenstate, off-diagonal generators are:
+- RAISING if they take the constrained state to a higher state
+- LOWERING if they take the constrained state to a lower state
+- MIXED if the coupling is ambiguous (operator is Hermitian, can do both)
+
+Since Gell-Mann matrices are Hermitian, each off-diagonal generator contains both
+raising and lowering components. We return MIXED for off-diagonal Lie generators.
+"""
+function classify_lie_generator_for_constraint(op::BaseOperator, constraint::OperatorConstraint)
+    # Off-diagonal Lie algebra generators are Hermitian and thus contain both
+    # raising and lowering components. Return MIXED.
+    # 
+    # Note: In a more sophisticated implementation, we could decompose into
+    # raising/lowering operators (like σ± for SU(2)), but for now we treat
+    # all off-diagonal generators as MIXED.
+    return MIXED
 end
 
 """
@@ -189,6 +238,17 @@ function find_affected_constraint(op::BaseOperator, P::Subspace)
                 end
             end
         end
+
+        # Check Lie algebra constraints
+        if is_lie_algebra_constraint(constraint)
+            lie_info = get_lie_algebra_constraint_info(constraint)
+            if lie_info !== nothing && t == LieAlgebraGen_
+                if op.name == lie_info.name && op.inds == lie_info.inds &&
+                   op.algebra_id == lie_info.algebra_id
+                    return i
+                end
+            end
+        end
     end
 
     return 0  # No constraint affected
@@ -252,18 +312,18 @@ end
 Extract the off-block-diagonal part of H with respect to subspace P.
 This includes terms that couple P to Q (P·H·Q + Q·H·P).
 
-Note: Terms classified as MIXED (like σx when not using σpm mode) are skipped.
-For proper handling, ensure Hamiltonians are expressed in the σ± basis.
+Note: MIXED terms (like σx in σz basis, or off-diagonal Lie algebra generators)
+are included in the off-diagonal part since they contain off-diagonal components
+that couple different subspaces.
 """
 function off_diagonal_part(H::QuExpr, P::Subspace)
     # Build result directly to avoid expensive iszero checks in + operator
     result_terms = Dict{QuTerm,Number}()
     for (term, coeff) in H.terms
         class = classify_term(term, P)
-        if class == RAISING || class == LOWERING
+        if class == RAISING || class == LOWERING || class == MIXED
             result_terms[term] = coeff
         end
-        # MIXED terms are skipped
     end
     return QuExpr(result_terms)
 end
