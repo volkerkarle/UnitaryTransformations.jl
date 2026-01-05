@@ -193,8 +193,10 @@ function _collect_bch_terms_at_order(
     #    Using [Sₘ, H₀] = -V_od[m], these become:
     #    [Sᵢ₁, [Sᵢ₂, [..., -V_od[iₖ]...]]] where i₁ + i₂ + ... + iₖ = n
     
-    # Maximum depth is n (if we use k copies of S₁, we get depth k with sum k)
-    max_depth = n - 1  # At most n-1 generators (each at least order 1) to reach sum n-1
+    # Maximum depth for Part 1: n-1 generators (each at least order 1) to reach sum n-1
+    # Maximum depth for Part 2: n generators (each at least order 1) to reach sum n
+    # So we need max_depth = n to cover both cases
+    max_depth = n
     
     for k in 1:max_depth
         # BCH coefficient: 1/k!
