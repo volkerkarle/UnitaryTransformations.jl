@@ -91,13 +91,15 @@ function figure1_two_level_system(; save_path=nothing)
     g_range = range(0, 0.8, length=100)
     
     # Compute energies using the actual SW results (evaluated symbolically):
-    # Order 2: H_P = (Δ² + 2g²) / (-2Δ) = -Δ/2 - g²/Δ
-    # Order 4: H_P = (Δ⁴/2 + Δ²g² - g⁴) / (-Δ³) = -Δ/2 - g²/Δ + g⁴/Δ³
-    # Order 6: H_P = (Δ⁶/2 + Δ⁴g² - Δ²g⁴ + 2g⁶) / (-Δ⁵) = -Δ/2 - g²/Δ + g⁴/Δ³ - 2g⁶/Δ⁵
+    # Order 2: H_P = -Δ/2 - g²/Δ
+    # Order 4: H_P = -Δ/2 - g²/Δ + g⁴/Δ³
+    # Order 6: H_P = -Δ/2 - g²/Δ + g⁴/Δ³ - 2g⁶/Δ⁵
+    # Order 8: H_P = -Δ/2 - g²/Δ + g⁴/Δ³ - 2g⁶/Δ⁵ + 5g⁸/Δ⁷
     E_exact = [-sqrt(Δ^2/4 + g^2) for g in g_range]
     E_SW2 = [-Δ/2 - g^2/Δ for g in g_range]
     E_SW4 = [-Δ/2 - g^2/Δ + g^4/Δ^3 for g in g_range]
     E_SW6 = [-Δ/2 - g^2/Δ + g^4/Δ^3 - 2*g^6/Δ^5 for g in g_range]
+    E_SW8 = [-Δ/2 - g^2/Δ + g^4/Δ^3 - 2*g^6/Δ^5 + 5*g^8/Δ^7 for g in g_range]
     
     fig = Figure(size = (700, 500))
     
@@ -117,6 +119,8 @@ function figure1_two_level_system(; save_path=nothing)
            linestyle = :dashdot, label = "SW order 4")
     lines!(ax1, g_range, E_SW6, color = COLORS[3], linewidth = 2.5,
            linestyle = :dot, label = "SW order 6")
+    lines!(ax1, g_range, E_SW8, color = COLORS[4], linewidth = 2.5,
+           linestyle = :solid, label = "SW order 8")
     
     # Add legend
     axislegend(ax1, position = :lb)
@@ -141,10 +145,12 @@ function figure1_two_level_system(; save_path=nothing)
     err_SW2 = 100 .* abs.(E_SW2[mask] .- E_exact[mask]) ./ abs.(E_exact[mask])
     err_SW4 = 100 .* abs.(E_SW4[mask] .- E_exact[mask]) ./ abs.(E_exact[mask])
     err_SW6 = 100 .* abs.(E_SW6[mask] .- E_exact[mask]) ./ abs.(E_exact[mask])
+    err_SW8 = 100 .* abs.(E_SW8[mask] .- E_exact[mask]) ./ abs.(E_exact[mask])
     
     lines!(ax2, g_range[mask], err_SW2, color = COLORS[1], linewidth = 2)
     lines!(ax2, g_range[mask], err_SW4, color = COLORS[2], linewidth = 2)
     lines!(ax2, g_range[mask], err_SW6, color = COLORS[3], linewidth = 2)
+    lines!(ax2, g_range[mask], err_SW8, color = COLORS[4], linewidth = 2)
     
     ylims!(ax2, 0, 15)
     
@@ -410,6 +416,8 @@ function figure5_combined_summary(; save_path=nothing)
     E_e_SW4 = [Δ/2 + g^2/Δ - g^4/Δ^3 for g in g_range]
     E_g_SW6 = [-Δ/2 - g^2/Δ + g^4/Δ^3 - 2*g^6/Δ^5 for g in g_range]
     E_e_SW6 = [Δ/2 + g^2/Δ - g^4/Δ^3 + 2*g^6/Δ^5 for g in g_range]
+    E_g_SW8 = [-Δ/2 - g^2/Δ + g^4/Δ^3 - 2*g^6/Δ^5 + 5*g^8/Δ^7 for g in g_range]
+    E_e_SW8 = [Δ/2 + g^2/Δ - g^4/Δ^3 + 2*g^6/Δ^5 - 5*g^8/Δ^7 for g in g_range]
     
     lines!(ax1, g_range, E_g_exact, color = :black, linewidth = 2.5, label = "Exact")
     lines!(ax1, g_range, E_e_exact, color = :black, linewidth = 2.5)
@@ -419,6 +427,8 @@ function figure5_combined_summary(; save_path=nothing)
     lines!(ax1, g_range, E_e_SW4, color = COLORS[2], linewidth = 2, linestyle = :dashdot)
     lines!(ax1, g_range, E_g_SW6, color = COLORS[3], linewidth = 2, linestyle = :dot, label = "Order 6")
     lines!(ax1, g_range, E_e_SW6, color = COLORS[3], linewidth = 2, linestyle = :dot)
+    lines!(ax1, g_range, E_g_SW8, color = COLORS[4], linewidth = 2, linestyle = :solid, label = "Order 8")
+    lines!(ax1, g_range, E_e_SW8, color = COLORS[4], linewidth = 2, linestyle = :solid)
     
     axislegend(ax1, position = :lt)
     
@@ -433,11 +443,13 @@ function figure5_combined_summary(; save_path=nothing)
     gap_SW2 = E_e_SW2 .- E_g_SW2
     gap_SW4 = E_e_SW4 .- E_g_SW4
     gap_SW6 = E_e_SW6 .- E_g_SW6
+    gap_SW8 = E_e_SW8 .- E_g_SW8
     
     lines!(ax2, g_range, gap_exact, color = :black, linewidth = 2.5, label = "Exact")
     lines!(ax2, g_range, gap_SW2, color = COLORS[1], linewidth = 2, linestyle = :dash, label = "Order 2")
     lines!(ax2, g_range, gap_SW4, color = COLORS[2], linewidth = 2, linestyle = :dashdot, label = "Order 4")
     lines!(ax2, g_range, gap_SW6, color = COLORS[3], linewidth = 2, linestyle = :dot, label = "Order 6")
+    lines!(ax2, g_range, gap_SW8, color = COLORS[4], linewidth = 2, linestyle = :solid, label = "Order 8")
     
     axislegend(ax2, position = :lt)
     
@@ -451,10 +463,12 @@ function figure5_combined_summary(; save_path=nothing)
     err_SW2 = 100 .* abs.(E_g_SW2 .- E_g_exact) ./ abs.(E_g_exact)
     err_SW4 = 100 .* abs.(E_g_SW4 .- E_g_exact) ./ abs.(E_g_exact)
     err_SW6 = 100 .* abs.(E_g_SW6 .- E_g_exact) ./ abs.(E_g_exact)
+    err_SW8 = 100 .* abs.(E_g_SW8 .- E_g_exact) ./ abs.(E_g_exact)
     
     lines!(ax3, g_range, err_SW2, color = COLORS[1], linewidth = 2.5, label = "Order 2")
     lines!(ax3, g_range, err_SW4, color = COLORS[2], linewidth = 2.5, label = "Order 4")
     lines!(ax3, g_range, err_SW6, color = COLORS[3], linewidth = 2.5, label = "Order 6")
+    lines!(ax3, g_range, err_SW8, color = COLORS[4], linewidth = 2.5, label = "Order 8")
     
     axislegend(ax3, position = :lt)
     
