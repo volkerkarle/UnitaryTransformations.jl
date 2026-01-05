@@ -88,7 +88,7 @@ SW order 4: E_g ≈ -Δ/2 - g²/Δ + g⁴/Δ³
 """
 function figure1_two_level_system(; save_path=nothing)
     Δ = 1.0  # Energy scale
-    g_range = range(0, 0.8, length=100)
+    g_range = range(0, 1.0, length=100)
     
     # Compute energies using the actual SW results (evaluated symbolically):
     # Order 2: H_P = -Δ/2 - g²/Δ
@@ -407,7 +407,7 @@ function figure5_combined_summary(; save_path=nothing)
         title = "(a) Two-level system energy levels",
     )
     
-    g_range = range(0, 0.6, length=80)
+    g_range = range(0, 1.0, length=100)
     E_g_exact = [-sqrt(Δ^2/4 + g^2) for g in g_range]
     E_e_exact = [sqrt(Δ^2/4 + g^2) for g in g_range]
     E_g_SW2 = [-Δ/2 - g^2/Δ for g in g_range]
