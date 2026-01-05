@@ -6,6 +6,7 @@ quantum expressions that use Symbolics.jl for symbolic manipulation.
 """
 
 export simplify_coefficients, substitute_values, extract_coefficient, collect_terms
+export to_latex, print_latex, show_result
 
 using QuantumAlgebra
 using QuantumAlgebra: QuExpr, QuTerm, Param, normal_form
@@ -162,4 +163,127 @@ function collect_terms(expr::QuExpr)
     end
 
     return results
+end
+
+# ============================================================================
+# LaTeX Output Functions
+# ============================================================================
+
+"""
+    to_latex(expr::QuExpr; simplify_coeff::Bool=true)
+
+Convert a QuExpr to a LaTeX string with simplified coefficients.
+
+# Arguments
+- `expr`: The quantum expression to convert
+- `simplify_coeff`: Whether to simplify coefficients first (default: true)
+
+# Returns
+A LaTeX string representation of the expression.
+
+# Example
+```julia
+H = Δ/2 * σz() + g * (a'() * σm() + a() * σp())
+println(to_latex(H))
+```
+"""
+function to_latex(expr::QuExpr; simplify_coeff::Bool = true)
+    if simplify_coeff
+        expr = simplify_coefficients(expr)
+    end
+    return QuantumAlgebra.latex(expr)
+end
+
+"""
+    to_latex(result::NamedTuple; simplify_coeff::Bool=true)
+
+Convert a Schrieffer-Wolff result to LaTeX strings.
+
+# Returns
+A NamedTuple with LaTeX strings for each component:
+- `H_eff`: The effective Hamiltonian
+- `S`: The generator
+- `H_P`: The projected Hamiltonian
+
+# Example
+```julia
+result = schrieffer_wolff(H, P; order=2)
+latex_result = to_latex(result)
+println(latex_result.H_P)
+```
+"""
+function to_latex(result::NamedTuple; simplify_coeff::Bool = true)
+    return (
+        H_eff = to_latex(result.H_eff; simplify_coeff),
+        S = to_latex(result.S; simplify_coeff),
+        H_P = to_latex(result.H_P; simplify_coeff),
+    )
+end
+
+"""
+    print_latex(expr::QuExpr; name::String="", display::Bool=true, simplify_coeff::Bool=true)
+
+Print a QuExpr as LaTeX, optionally wrapped in display math environment.
+
+# Arguments
+- `expr`: The quantum expression to print
+- `name`: Optional name to show (e.g., "H_{eff}")
+- `display`: If true, wrap in `\\[ ... \\]` for display math
+- `simplify_coeff`: Whether to simplify coefficients first
+
+# Example
+```julia
+print_latex(result.H_P; name="H_P")
+# Output: H_P = - \\frac{1}{2} \\Delta + ...
+```
+"""
+function print_latex(
+    expr::QuExpr;
+    name::String = "",
+    display::Bool = false,
+    simplify_coeff::Bool = true,
+)
+    latex_str = to_latex(expr; simplify_coeff)
+
+    if !isempty(name)
+        latex_str = name * " = " * latex_str
+    end
+
+    if display
+        latex_str = "\\[\n" * latex_str * "\n\\]"
+    end
+
+    println(latex_str)
+    return latex_str
+end
+
+"""
+    show_result(result::NamedTuple; display::Bool=false, simplify_coeff::Bool=true)
+
+Pretty-print all components of a Schrieffer-Wolff result in LaTeX.
+
+# Arguments
+- `result`: The result from `schrieffer_wolff`
+- `display`: If true, wrap each in display math environment
+- `simplify_coeff`: Whether to simplify coefficients
+
+# Example
+```julia
+result = schrieffer_wolff(H, P; order=2)
+show_result(result)
+```
+"""
+function show_result(result::NamedTuple; display::Bool = false, simplify_coeff::Bool = true)
+    println("Generator:")
+    print_latex(result.S; name = "S", display, simplify_coeff)
+    println()
+
+    println("Effective Hamiltonian:")
+    print_latex(result.H_eff; name = "H_{\\text{eff}}", display, simplify_coeff)
+    println()
+
+    println("Projected to subspace P:")
+    print_latex(result.H_P; name = "H_P", display, simplify_coeff)
+
+    return nothing
 end

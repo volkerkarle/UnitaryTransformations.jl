@@ -160,6 +160,25 @@ H_numeric = substitute_values(result.H_P, Dict(:g => 0.1, :Δ => 1.0))
 println("H_P with g=0.1, Δ=1.0: ", H_numeric)
 ```
 
+## Step 8: LaTeX Output
+
+For publications and documentation, you can output results in LaTeX:
+
+```julia
+# Convert a single expression to LaTeX
+println(to_latex(result.H_P))
+# Output: - \frac{1}{2} \Delta + \frac{-g^{2}}{\Delta} {a}^{\dagger} {a}
+
+# Pretty-print with a name
+print_latex(result.H_P; name="H_P")
+# Output: H_P = - \frac{1}{2} \Delta + \frac{-g^{2}}{\Delta} {a}^{\dagger} {a}
+
+# Show all components of the result
+show_result(result)
+```
+
+The `show_result` function prints the generator ``S``, effective Hamiltonian ``H_{\text{eff}}``, and projected Hamiltonian ``H_P`` in LaTeX format.
+
 ## Complete Example
 
 Here's the full code:

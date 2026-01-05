@@ -88,6 +88,14 @@ extract_coefficient
 collect_terms
 ```
 
+### LaTeX Output
+
+```@docs
+to_latex
+print_latex
+show_result
+```
+
 ### Parameter Conversion
 
 Functions for converting between QuantumAlgebra's `Param` and Symbolics.jl variables:
