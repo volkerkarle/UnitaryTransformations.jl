@@ -15,25 +15,26 @@ using Symbolics
 using Symbolics: Num, simplify, simplify_fractions
 
 """
-    simplify_coefficients(expr::QuExpr)
+    simplify_coefficients(expr::QuExpr; aggressive::Bool=false)
 
 Simplify all Symbolics coefficients in a QuExpr.
 Returns a new QuExpr with simplified coefficients.
 
-Uses `simplify_fractions` which is much faster than full `simplify`
-for the rational expressions that arise in Schrieffer-Wolff.
+By default, uses `simplify_fractions` which is faster but may not fully
+simplify complex expressions. Set `aggressive=true` to use full `simplify`
+which can find more cancellations but is slower.
 
 Note: Parallelization was attempted but SymbolicUtils/Symbolics.jl
 has thread-safety issues that cause race conditions during simplification.
 The serial version is used for correctness.
 """
-function simplify_coefficients(expr::QuExpr)
+function simplify_coefficients(expr::QuExpr; aggressive::Bool = false)
     # Build result directly to avoid expensive iszero checks in + operator
     result_terms = Dict{QuTerm,Number}()
     for (term, coeff) in expr.terms
         if coeff isa Num
-            # Use simplify_fractions - much faster for rational expressions
-            simplified_coeff = simplify_fractions(coeff)
+            # Use simplify for better results, simplify_fractions for speed
+            simplified_coeff = aggressive ? simplify(coeff) : simplify_fractions(coeff)
             result_terms[term] = simplified_coeff
         else
             result_terms[term] = coeff

@@ -7,7 +7,7 @@ Provides several BCH-related functions:
 - `nested_commutator(S, H, n)`: Compute n-fold nested commutator
 """
 
-export commutator_series, nested_commutator, bch_transform, bch_combine
+export commutator_series, nested_commutator, multi_nested_commutator, compositions, bch_transform, bch_combine
 
 using QuantumAlgebra
 using QuantumAlgebra: QuExpr, normal_form, comm
@@ -31,6 +31,95 @@ function nested_commutator(S::QuExpr, H::QuExpr, n::Int)
         result = comm(S, result)
         result = normal_form(result)
     end
+    return result
+end
+
+"""
+    multi_nested_commutator(generators::Vector{QuExpr}, X::QuExpr)
+
+Compute the nested commutator [g₁, [g₂, [..., [gₖ, X]...]]] for a list of generators.
+
+The generators are applied from right to left (innermost first), so:
+- `multi_nested_commutator([S₁, S₂], X)` computes `[S₁, [S₂, X]]`
+- `multi_nested_commutator([S₁], X)` computes `[S₁, X]`
+- `multi_nested_commutator(QuExpr[], X)` returns `X`
+
+# Arguments
+- `generators`: Vector of generator expressions (can have different orders)
+- `X`: The base operator (innermost argument)
+
+# Returns
+- The nested commutator as a QuExpr
+"""
+function multi_nested_commutator(generators::Vector{QuExpr}, X::QuExpr)
+    isempty(generators) && return X
+    
+    result = X
+    # Apply from right to left: for [S₁, [S₂, X]], we first compute [S₂, X], then [S₁, ...]
+    for g in reverse(generators)
+        result = normal_form(comm(g, result))
+    end
+    return result
+end
+
+"""
+    compositions(n::Int, k::Int; min_val::Int=1, max_val::Int=n)
+
+Generate all k-tuples of positive integers that sum to n.
+
+A composition is an ordered partition: (1,2) and (2,1) are different compositions of 3 into 2 parts.
+
+# Arguments
+- `n`: The target sum
+- `k`: The number of parts (length of each tuple)
+- `min_val`: Minimum value for each part (default: 1)
+- `max_val`: Maximum value for each part (default: n)
+
+# Returns
+- Vector of Vector{Int}, each inner vector is a composition
+
+# Examples
+```julia
+compositions(3, 2)  # [(1,2), (2,1)]
+compositions(4, 2)  # [(1,3), (2,2), (3,1)]
+compositions(4, 2; max_val=2)  # [(2,2)]
+compositions(4, 3)  # [(1,1,2), (1,2,1), (2,1,1)]
+```
+"""
+function compositions(n::Int, k::Int; min_val::Int=1, max_val::Int=n)
+    n >= 0 || throw(ArgumentError("n must be non-negative, got $n"))
+    k >= 0 || throw(ArgumentError("k must be non-negative, got $k"))
+    
+    if k == 0
+        return n == 0 ? [Int[]] : Vector{Int}[]
+    end
+    
+    result = Vector{Vector{Int}}()
+    
+    function generate(current::Vector{Int}, remaining::Int, parts_left::Int)
+        if parts_left == 0
+            if remaining == 0
+                push!(result, copy(current))
+            end
+            return
+        end
+        
+        # For the current part, try all valid values
+        # Must leave room for remaining parts to have at least min_val each
+        min_remaining = min_val * (parts_left - 1)
+        max_remaining = max_val * (parts_left - 1)
+        
+        lo = max(min_val, remaining - max_remaining)
+        hi = min(max_val, remaining - min_remaining)
+        
+        for val in lo:hi
+            push!(current, val)
+            generate(current, remaining - val, parts_left - 1)
+            pop!(current)
+        end
+    end
+    
+    generate(Int[], n, k)
     return result
 end
 

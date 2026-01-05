@@ -433,21 +433,15 @@
 
         P = Subspace(λ[8] => 0.5)
 
-        # First order SW transformation
-        result = schrieffer_wolff(H, P; order = 1)
-
-        # The effective Hamiltonian at order 1 should just be H_d
-        @test is_diagonal(result.H_eff, P)
-
-        # Generator should be non-empty
-        @test !isempty(result.S.terms)
-
-        # Second order: should get dispersive-like shifts
+        # Second order SW transformation (minimum order is 2)
         result2 = schrieffer_wolff(H, P; order = 2)
         @test is_diagonal(result2.H_eff, P)
 
-        # H_eff at order 2 should have more terms than at order 1 (dispersive shifts)
-        @test length(result2.H_eff.terms) >= length(result.H_eff.terms)
+        # Generator should be non-empty
+        @test !isempty(result2.S.terms)
+
+        # H_eff at order 2 should have dispersive-like shifts (more terms than just H_d)
+        @test length(result2.H_eff.terms) >= length(H_d.terms)
     end
 
     @testset "N-level transition operators + bosons" begin
@@ -516,6 +510,67 @@
 
         # H_eff should have more terms than H_d due to dispersive shifts
         @test length(result.H_eff.terms) > length(H_d.terms)
+    end
+
+    @testset "4th order SW - Kerr nonlinearity" begin
+        # Test that 4th order SW produces Kerr terms (a†²a²)
+        # For Rabi model in dispersive regime
+
+        @variables ω_c Δ g
+
+        # Rabi Hamiltonian: H = ω_c a†a + Δ/2 σz + g(a† + a)(σ+ + σ-)
+        H = ω_c * a'() * a() + Δ / 2 * σz() + g * (a'() + a()) * (σp() + σm())
+        P = Subspace(a'()*a() => 0)
+
+        # Compute 4th order SW
+        result4 = schrieffer_wolff(H, P; order = 4)
+
+        # Check that the result is block-diagonal
+        @test is_diagonal(result4.H_eff, P)
+
+        # Check that H_P contains the expected operators
+        op_strings = Set{String}()
+        for (term, _) in result4.H_P.terms
+            op_str = isempty(term.bares.v) ? "𝟙" : string(term.bares)
+            push!(op_strings, op_str)
+        end
+
+        # Should have:
+        # - Identity (constant energy shift)
+        # - σ⁺σ⁻ (qubit frequency shift)
+        # - a†a (cavity frequency shift)
+        # - a†σ⁺σ⁻a (dispersive shift)
+        # - a†²a² (Kerr nonlinearity - NEW at order 4)
+        # - a†²σ⁺σ⁻a² (higher dispersive - NEW at order 4)
+        @test "𝟙" in op_strings
+        @test "σ⁺() σ⁻()" in op_strings
+        @test "a†() a()" in op_strings
+        @test "a†() σ⁺() σ⁻() a()" in op_strings
+        @test "a†()² a()²" in op_strings  # Kerr term!
+        @test "a†()² σ⁺() σ⁻() a()²" in op_strings  # Higher-order dispersive
+
+        # Check that Kerr coefficient scales as g⁴
+        kerr_coeff = nothing
+        for (term, coeff) in result4.H_P.terms
+            op_str = isempty(term.bares.v) ? "𝟙" : string(term.bares)
+            if op_str == "a†()² a()²"
+                kerr_coeff = coeff
+                break
+            end
+        end
+
+        @test kerr_coeff !== nothing
+
+        # Verify the Kerr coefficient has g⁴ dependence
+        # Substitute g → 0: coefficient should be 0
+        val_g0 = Symbolics.substitute(kerr_coeff, Dict(g => 0.0))
+        @test abs(Float64(Symbolics.value(val_g0))) < 1e-10
+
+        # Verify scaling: K(2g)/K(g) ≈ 16 (since K ~ g⁴)
+        val_g1 = Symbolics.substitute(kerr_coeff, Dict(g => 1.0, Δ => 5.0, ω_c => 1.0))
+        val_g2 = Symbolics.substitute(kerr_coeff, Dict(g => 2.0, Δ => 5.0, ω_c => 1.0))
+        ratio = Float64(Symbolics.value(val_g2)) / Float64(Symbolics.value(val_g1))
+        @test abs(ratio - 16.0) < 1e-6  # Should be exactly 16 for g⁴ scaling
     end
 
     QuantumAlgebra.use_σpm(false)

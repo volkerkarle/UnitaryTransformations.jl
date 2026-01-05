@@ -2,6 +2,18 @@
 
 This page presents complete physics examples demonstrating the Schrieffer-Wolff transformation. Each example shows the LaTeX output for easy use in publications.
 
+## Convergence Analysis
+
+The following figure demonstrates how higher-order SW transformations systematically improve the accuracy of the effective Hamiltonian:
+
+![Summary of SW transformations at different orders](assets/summary.png)
+
+**Key observations:**
+- **Panel (a)**: Energy levels of a two-level system. Higher orders capture the curvature better.
+- **Panel (b)**: The energy gap ``E_+ - E_-`` approaches the exact ``\sqrt{\Delta^2 + 4\varepsilon^2}`` with higher orders.
+- **Panel (c)**: Relative error decreases with increasing SW order.
+- **Panel (d)**: Jaynes-Cummings model showing dispersive shift ``\chi`` and Kerr nonlinearity ``K`` (only present at order 4+).
+
 ## Jaynes-Cummings: Dispersive Regime
 
 The Jaynes-Cummings model describes a two-level atom coupled to a single cavity mode:
@@ -55,6 +67,8 @@ The effective Hamiltonian contains:
 2. **AC Stark shift**: Qubit frequency shifts with photon number
 
 This is the basis for **qubit readout** in circuit QED!
+
+![Jaynes-Cummings dispersive shift and Kerr nonlinearity](assets/jaynes_cummings.png)
 
 ### Extracting Parameters
 
@@ -110,12 +124,20 @@ E_- = -\sqrt{\frac{\Delta^2}{4} + \varepsilon^2} \approx -\frac{\Delta}{2} - \fr
 
 The SW result matches the perturbation expansion exactly!
 
+![Two-level system: SW orders vs exact solution](assets/two_level_system.png)
+
 | ``\varepsilon/\Delta`` | Exact | SW (2nd order) | Error |
 |:----------------------:|:-----:|:--------------:|:-----:|
 | 0.01 | -0.50005 | -0.5001 | 0.00% |
 | 0.05 | -0.50125 | -0.5025 | 0.00% |
 | 0.10 | -0.50499 | -0.51 | 0.02% |
 | 0.20 | -0.51980 | -0.54 | 0.28% |
+
+### Convergence with Order
+
+![Convergence of SW expansion](assets/convergence.png)
+
+The figure shows how the approximation error decreases with increasing SW order. For small perturbations (``\varepsilon/\Delta < 0.3``), convergence is rapid. For larger coupling, more orders are needed.
 
 ---
 
@@ -161,6 +183,8 @@ The total dispersive shift combines both contributions:
 ```math
 \chi_{\text{total}} = -\frac{g^2}{\Delta - \omega} - \frac{g^2}{\Delta + \omega}
 ```
+
+![Bloch-Siegert shift: JC vs full Rabi model](assets/bloch_siegert.png)
 
 ---
 

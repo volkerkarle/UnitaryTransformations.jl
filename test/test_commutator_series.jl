@@ -1,7 +1,8 @@
 @testset "Commutator Series" begin
     using QuantumAlgebra
     using UnitaryTransformations:
-        nested_commutator, commutator_series, bch_transform, bch_combine
+        nested_commutator, multi_nested_commutator, compositions, 
+        commutator_series, bch_transform, bch_combine
 
     @testset "Nested commutators" begin
         # [a, a†] = 1
@@ -25,6 +26,68 @@
 
         # Error handling
         @test_throws ArgumentError nested_commutator(a(), a'(), -1)
+    end
+
+    @testset "Multi-generator nested commutators" begin
+        # Empty generators list returns the base operator
+        @test multi_nested_commutator(QuExpr[], a'()*a()) == a'()*a()
+        
+        # Single generator: [S, X]
+        S1 = a()
+        X = a'()*a()
+        @test normal_form(multi_nested_commutator([S1], X)) == normal_form(comm(S1, X))
+        
+        # Two generators: [S1, [S2, X]]
+        S2 = a'()
+        # [a, [a†, a†a]] = [a, -a†] = -1
+        expected = normal_form(comm(S1, comm(S2, X)))
+        @test normal_form(multi_nested_commutator([S1, S2], X)) == expected
+        
+        # Verify multi_nested_commutator matches nested_commutator for identical generators
+        @variables α
+        S = α * a()
+        H = a'()*a()
+        # [S, [S, H]] with same S should equal nested_commutator(S, H, 2)
+        @test normal_form(multi_nested_commutator([S, S], H)) == normal_form(nested_commutator(S, H, 2))
+        @test normal_form(multi_nested_commutator([S, S, S], H)) == normal_form(nested_commutator(S, H, 3))
+    end
+
+    @testset "Compositions function" begin
+        # Test basic compositions
+        @test compositions(0, 0) == [Int[]]
+        @test compositions(1, 0) == Vector{Int}[]  # Can't partition positive into 0 parts
+        @test compositions(0, 1) == Vector{Int}[]  # Can't use 0 parts that sum to 0 with min_val=1
+        
+        # Simple cases
+        @test compositions(1, 1) == [[1]]
+        @test compositions(2, 1) == [[2]]
+        @test compositions(2, 2) == [[1, 1]]
+        
+        # Ordered partitions (compositions)
+        comps_3_2 = compositions(3, 2)
+        @test length(comps_3_2) == 2
+        @test [1, 2] in comps_3_2
+        @test [2, 1] in comps_3_2
+        
+        comps_4_2 = compositions(4, 2)
+        @test length(comps_4_2) == 3
+        @test [1, 3] in comps_4_2
+        @test [2, 2] in comps_4_2
+        @test [3, 1] in comps_4_2
+        
+        comps_4_3 = compositions(4, 3)
+        @test length(comps_4_3) == 3
+        @test [1, 1, 2] in comps_4_3
+        @test [1, 2, 1] in comps_4_3
+        @test [2, 1, 1] in comps_4_3
+        
+        # With max_val constraint
+        comps_4_2_max2 = compositions(4, 2; max_val=2)
+        @test comps_4_2_max2 == [[2, 2]]
+        
+        # Error handling
+        @test_throws ArgumentError compositions(-1, 1)
+        @test_throws ArgumentError compositions(1, -1)
     end
 
     @testset "BCH expansion - bch_transform" begin

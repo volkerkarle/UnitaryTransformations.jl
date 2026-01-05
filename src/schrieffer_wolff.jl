@@ -11,7 +11,7 @@ using QuantumAlgebra
 using QuantumAlgebra:
     QuExpr, QuTerm, BaseOperator, BaseOpProduct, TLSCreate_, TLSDestroy_, normal_form, comm
 
-import ..UnitaryTransformations: get_spin_constraint_info, simplify_coefficients
+import ..UnitaryTransformations: get_spin_constraint_info, simplify_coefficients, multi_nested_commutator, compositions
 
 """
     schrieffer_wolff(H::QuExpr, P::Subspace; order::Int=2)
@@ -26,7 +26,9 @@ in perturbation theory.
 # Arguments
 - `H`: The full Hamiltonian to transform
 - `P`: The low-energy subspace definition
-- `order`: Perturbation theory order (default: 2)
+- `order`: Perturbation theory order in the coupling strength (default: 2).
+  - order=2: Standard SW, captures g² corrections (dispersive shifts)
+  - order=4: Includes g⁴ corrections (Kerr nonlinearity, Bloch-Siegert, etc.)
 - `simplify_generator`: Whether to simplify the generator S (default: false).
   Simplifying S can be very slow at high orders due to GCD computations on
   complex symbolic fractions. Set to `true` if you need simplified S.
@@ -34,8 +36,18 @@ in perturbation theory.
 # Returns
 - Named tuple `(H_eff, S, H_P)` where:
   - `H_eff`: The full block-diagonal effective Hamiltonian
-  - `S`: The generator of the transformation
+  - `S`: The generator of the transformation (S = S₁ + S₂ + ... where Sₙ is O(gⁿ))
   - `H_P`: The effective Hamiltonian projected onto subspace P
+
+# Algorithm
+The SW transformation uses S = S₁ + S₂ + S₃ + ... where each Sₙ is order gⁿ.
+At each order, the off-diagonal terms from the BCH expansion determine Sₙ,
+and the diagonal terms contribute to H_eff.
+
+Key commutator rules (D=diagonal, O=off-diagonal):
+- [O, O] → D
+- [O, D] → O  
+- [D, D] → D
 
 # Example
 ```julia
@@ -49,6 +61,9 @@ H = ω * a'()*a() + Δ/2 * σz() + g * (a'()*σm() + a()*σp())
 # Transform to eliminate qubit-photon coupling
 P = Subspace(σz() => -1)  # qubit ground state
 result = schrieffer_wolff(H, P; order=2)
+
+# For 4th order corrections (Kerr effect, etc.)
+result4 = schrieffer_wolff(H, P; order=4)
 ```
 """
 function schrieffer_wolff(
@@ -57,73 +72,64 @@ function schrieffer_wolff(
     order::Int = 2,
     simplify_generator::Bool = false,
 )
-    order >= 1 || throw(ArgumentError("order must be at least 1, got $order"))
+    order >= 2 || throw(ArgumentError("order must be at least 2, got $order"))
 
     # Normalize the Hamiltonian first
     H = normal_form(H)
 
-    # Decompose H into diagonal and off-diagonal parts
-    H_d, H_od = decompose(H, P)
+    # Decompose H = H₀ (diagonal) + V (off-diagonal)
+    H0, V = decompose(H, P)
 
-    # Initialize total generator S and effective Hamiltonian
-    S_total = QuExpr()
-    H_eff = H_d  # Start with diagonal part
+    # Store generators at each order: S[n] = Sₙ (order gⁿ)
+    S = Vector{QuExpr}(undef, order)
 
-    # Current off-diagonal part to eliminate (starts with full H_od)
-    current_od = H_od
+    # Store off-diagonal "potentials" that each Sₙ must cancel: Vₙ where [Sₙ, H₀] = -Vₙ
+    V_od = Vector{QuExpr}(undef, order)
+    V_od[1] = V  # V₁ = V (the original off-diagonal part)
 
-    # Order-by-order construction
-    for n = 1:order
-        if isempty(current_od.terms)
-            # No off-diagonal terms left to eliminate
-            break
-        end
+    # Initialize effective Hamiltonian with diagonal part
+    H_eff = H0
 
-        # Solve for S_n: [S_n, H_d] = -current_od
-        S_n = solve_for_generator(H_d, current_od, P)
+    # ========== Order 1: [S₁, H₀] = -V ==========
+    S[1] = solve_for_generator(H0, V, P)
 
-        # Accumulate generator (no simplification during iteration to avoid slowdown)
-        S_total = normal_form(S_total + S_n)
+    # ========== Order 2 and beyond ==========
+    for n = 2:order
+        # Collect all contributions at order n from the BCH expansion
+        # H_eff = H + [S,H] + (1/2)[S,[S,H]] + (1/6)[S,[S,[S,H]]] + ...
+        # with S = S₁ + S₂ + ... + Sₙ₋₁ (Sₙ not yet determined)
 
-        # Compute contribution to H_eff from this order
-        # At order n, we get contributions from [S_n, H_od] and higher commutators
+        order_n_terms = _collect_bch_terms_at_order(S, V_od, n, H0, V, P)
+        order_n_terms = simplify_coefficients(order_n_terms)
 
-        if n == 1
-            # Second-order contribution: (1/2)[S_1, V]
-            # where V is the original off-diagonal part
-            comm_S1_H = normal_form(comm(S_n, H))
+        # Decompose into diagonal (→ H_eff) and off-diagonal (→ determines Sₙ)
+        order_n_diag, order_n_od = decompose(order_n_terms, P)
 
-            # The diagonal part of [S_1, H] contributes to H_eff
-            comm_diag, comm_od = decompose(comm_S1_H, P)
+        # Add diagonal contribution to H_eff
+        H_eff = normal_form(H_eff + order_n_diag)
 
-            # Add half of the diagonal commutator (from BCH)
-            H_eff = normal_form(H_eff + comm_diag / 2)
+        # The off-diagonal part must be cancelled by [Sₙ, H₀]
+        V_od[n] = order_n_od
 
-            # The remaining off-diagonal part needs to be eliminated at next order
-            current_od = normal_form(comm_od / 2)
-
+        # Solve for Sₙ: [Sₙ, H₀] = -Vₙ
+        if !isempty(order_n_od.terms)
+            S[n] = solve_for_generator(H0, order_n_od, P)
         else
-            # Higher-order contributions
-            # Use BCH: H_eff gets contributions from nested commutators
-
-            # Compute [S_n, H_eff] 
-            comm_Sn_H = normal_form(comm(S_n, H_eff))
-            comm_diag, comm_od = decompose(comm_Sn_H, P)
-
-            # Add contribution to H_eff
-            factorial_n = factorial(n)
-            H_eff = normal_form(H_eff + comm_diag / factorial_n)
-
-            # Update remaining off-diagonal part
-            current_od = normal_form(current_od + comm_od / factorial_n)
+            S[n] = QuExpr()
         end
     end
 
-    # Final simplification of results only
+    # Combine all generators
+    S_total = QuExpr()
+    for n = 1:order
+        if isassigned(S, n)
+            S_total = normal_form(S_total + S[n])
+        end
+    end
+
+    # Final simplification
     H_eff = simplify_coefficients(H_eff)
 
-    # Simplifying S_total is optional - it can be very slow at high orders
-    # due to GCD computations on complex symbolic fractions
     if simplify_generator
         S_total = simplify_coefficients(S_total)
     end
@@ -132,6 +138,113 @@ function schrieffer_wolff(
     H_P = simplify_coefficients(project_to_subspace(H_eff, P))
 
     return (H_eff = H_eff, S = S_total, H_P = H_P)
+end
+
+"""
+    _collect_bch_terms_at_order(S, V_od, n, H0, V, P)
+
+Collect all BCH expansion terms at order n in the coupling.
+
+The BCH expansion is: H_eff = H + [S,H] + (1/2)[S,[S,H]] + (1/6)[S,[S,[S,H]]] + ...
+
+At order n, contributions come from nested commutators involving S₁,...,Sₙ₋₁
+with appropriate BCH coefficients (1/k!).
+
+This function dynamically computes all relevant terms by enumerating compositions
+of the required order among the available generators.
+
+# Algorithm
+For each BCH depth k (number of nested commutators), we need to collect terms where
+the generator orders plus the base operator order sum to n.
+
+The base operator can be:
+- V (order 1): need generator orders to sum to n-1
+- H₀ (order 0): but [Sₘ, H₀] = -V_od[m], which has order m
+  So [Sₘ, H₀] contributes like an order-m object, and we need to track this.
+
+For simplicity and correctness, we enumerate all compositions and handle the
+H₀ contribution by using the identity [Sₘ, H₀] = -V_od[m].
+"""
+function _collect_bch_terms_at_order(
+    S::Vector{QuExpr},
+    V_od::Vector{QuExpr},
+    n::Int,
+    H0::QuExpr,
+    V::QuExpr,
+    P::Subspace,
+)
+    result = QuExpr()
+    
+    # Import helper functions
+    # multi_nested_commutator and compositions are from commutator_series.jl
+    
+    # For BCH expansion, we need nested commutators [Sᵢ₁, [Sᵢ₂, [..., [Sᵢₖ, X]...]]]
+    # with coefficient 1/k!
+    
+    # At order n, we collect terms where: sum of generator orders + order(X) = n
+    # Generators Sₘ have order m (for m = 1, ..., n-1)
+    # V has order 1
+    # H₀ has order 0, but [Sₘ, H₀] = -V_od[m] effectively contributes order m
+    
+    # Strategy: We separate the contribution into two parts:
+    # 1. Nested commutators ending in V: [Sᵢ₁, [Sᵢ₂, [..., [Sᵢₖ, V]...]]]
+    #    where i₁ + i₂ + ... + iₖ = n - 1 (since V is order 1)
+    # 2. Nested commutators ending in H₀: [Sᵢ₁, [Sᵢ₂, [..., [Sᵢₖ, H₀]...]]]
+    #    Using [Sₘ, H₀] = -V_od[m], these become:
+    #    [Sᵢ₁, [Sᵢ₂, [..., -V_od[iₖ]...]]] where i₁ + i₂ + ... + iₖ = n
+    
+    # Maximum depth is n (if we use k copies of S₁, we get depth k with sum k)
+    max_depth = n - 1  # At most n-1 generators (each at least order 1) to reach sum n-1
+    
+    for k in 1:max_depth
+        # BCH coefficient: 1/k!
+        bch_coeff = big(1) // factorial(big(k))
+        
+        # Part 1: Base operator is V (order 1)
+        # Need generator orders to sum to n - 1
+        target_sum = n - 1
+        if target_sum >= k  # Need at least 1 per generator
+            for comp in compositions(target_sum, k; min_val=1, max_val=n-1)
+                # Check that all generator indices are valid (we only have S[1]...S[n-1])
+                if all(i -> isassigned(S, i), comp)
+                    generators = QuExpr[S[i] for i in comp]
+                    term = multi_nested_commutator(generators, V)
+                    result = normal_form(result + bch_coeff * term)
+                end
+            end
+        end
+        
+        # Part 2: Base operator is H₀ (order 0)
+        # The innermost commutator [Sᵢₖ, H₀] = -V_od[iₖ]
+        # So we compute [Sᵢ₁, [..., [Sᵢₖ₋₁, -V_od[iₖ]]...]]
+        # where i₁ + i₂ + ... + iₖ = n
+        target_sum_H0 = n
+        if target_sum_H0 >= k  # Need at least 1 per generator
+            for comp in compositions(target_sum_H0, k; min_val=1, max_val=n-1)
+                # Check that all generator indices are valid
+                if all(i -> isassigned(S, i), comp)
+                    # The innermost generator index gives us V_od[iₖ]
+                    inner_idx = comp[end]
+                    if isassigned(V_od, inner_idx) && !isempty(V_od[inner_idx].terms)
+                        # [Sᵢₖ, H₀] = -V_od[iₖ]
+                        inner_result = -V_od[inner_idx]
+                        
+                        if k == 1
+                            # Just [Sᵢ₁, H₀] = -V_od[i₁], no further nesting
+                            result = normal_form(result + bch_coeff * inner_result)
+                        else
+                            # Apply remaining generators: [Sᵢ₁, [..., [Sᵢₖ₋₁, -V_od[iₖ]]...]]
+                            outer_generators = QuExpr[S[i] for i in comp[1:end-1]]
+                            term = multi_nested_commutator(outer_generators, inner_result)
+                            result = normal_form(result + bch_coeff * term)
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    return result
 end
 
 """
