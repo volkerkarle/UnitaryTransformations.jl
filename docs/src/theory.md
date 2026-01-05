@@ -205,6 +205,70 @@ This is implemented in `solve_for_generator_lie()`.
 
 ---
 
+## General Method: Liouvillian Linear System
+
+When operators are **not** eigenoperators of the adjoint action—i.e., when ``[H_d, O]`` produces a **linear combination** of operators rather than a scalar multiple of ``O``—a more general approach is needed.
+
+### The Problem
+
+We want to solve the generator equation:
+
+```math
+[S, H_d] = -V_{\text{od}}
+```
+
+Expand both ``S`` and ``V_{\text{od}}`` in a basis of operators ``\{O_1, O_2, \ldots, O_n\}``:
+
+```math
+S = \sum_j s_j O_j, \quad V_{\text{od}} = \sum_i v_i O_i
+```
+
+The commutator ``[O_j, H_d]`` may not be proportional to ``O_j``, but is a linear combination:
+
+```math
+[O_j, H_d] = \sum_i L_{ij} O_i
+```
+
+where ``L`` is the **Liouvillian matrix** (the matrix representation of the adjoint action ``\mathcal{L}_{H_d}``).
+
+### The Linear System
+
+Substituting into the generator equation:
+
+```math
+[S, H_d] = \sum_j s_j [O_j, H_d] = \sum_j s_j \sum_i L_{ij} O_i = \sum_i \left(\sum_j L_{ij} s_j\right) O_i
+```
+
+For this to equal ``-V_{\text{od}} = -\sum_i v_i O_i``, we need:
+
+```math
+\sum_j L_{ij} s_j = -v_i \quad \Rightarrow \quad L \cdot \mathbf{s} = -\mathbf{v}
+```
+
+This is a **linear system** that can be solved symbolically.
+
+### Algorithm
+
+The implementation in `solve_for_generator_general()`:
+
+1. **Extract basis**: Collect all unique operator structures from ``V_{\text{od}}``
+2. **Compute Liouvillian matrix**: For each basis operator ``O_j``, compute ``[O_j, H_d]`` and extract coefficients
+3. **Solve linear system**: ``\mathbf{s} = -L^{-1}\mathbf{v}`` using Cramer's rule (small systems) or Gaussian elimination
+4. **Reconstruct generator**: ``S = \sum_j s_j O_j``
+
+### When to Use
+
+The general method is automatically used when:
+- The eigenoperator method fails to find a scalar eigenvalue
+- Operators mix under commutation with ``H_d``
+- You explicitly request it via `method=:general`
+
+### Example
+
+For coupled oscillators where ``[H_d, a_1]`` produces both ``a_1`` and ``a_2`` terms, the eigenoperator method fails but the general method handles it correctly by solving the coupled linear system.
+
+---
+
 ## Energy Denominators
 
 The energy denominators in SW transformations have important physical meaning:

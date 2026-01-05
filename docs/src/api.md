@@ -40,11 +40,32 @@ solve_for_generator
 
 ### Method-Specific Functions
 
-Two methods are available, automatically selected based on the operator types:
+Three methods are available, automatically selected based on the operator types:
 
 ```@docs
 solve_for_generator_eigenoperator
 solve_for_generator_lie
+solve_for_generator_general
+```
+
+The **eigenoperator method** works when ``[H_d, O] = \varepsilon \cdot O`` (TLS, bosons, N-level transitions).
+
+The **Lie algebra method** works for SU(N) systems by converting to the Cartan-Weyl basis.
+
+The **general method** works for any operators by solving the Liouvillian linear system ``L \cdot s = -v``.
+
+### Method Selection
+
+The `solve_for_generator` function accepts a `method` keyword argument:
+
+```julia
+# Automatic selection (default)
+S = solve_for_generator(H_d, V_od, P; method=:auto)
+
+# Force specific method
+S = solve_for_generator(H_d, V_od, P; method=:eigenoperator)
+S = solve_for_generator(H_d, V_od, P; method=:lie)
+S = solve_for_generator(H_d, V_od, P; method=:general)
 ```
 
 ### Supporting Functions
