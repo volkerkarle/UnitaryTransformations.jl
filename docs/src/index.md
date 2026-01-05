@@ -2,6 +2,8 @@
 
 A Julia package for performing symbolic unitary transformations on quantum Hamiltonians.
 
+![Summary of Schrieffer-Wolff transformations at different orders](assets/summary.png)
+
 ## Overview
 
 Unitary transformations are essential tools in quantum mechanics for:
