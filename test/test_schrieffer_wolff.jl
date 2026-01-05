@@ -518,57 +518,5 @@
         @test length(result.H_eff.terms) > length(H_d.terms)
     end
 
-    @testset "General method - explicit call" begin
-        # Test that solve_for_generator_general can be called directly
-        using UnitaryTransformations: solve_for_generator_general
-
-        @variables Δ ε
-
-        H_d = Δ/2 * σz()
-        V_od = ε * (σp() + σm())
-        P = Subspace(σz() => -1)
-
-        # Use general method explicitly
-        S = solve_for_generator_general(H_d, V_od, P)
-
-        @test !isempty(S.terms)
-
-        # Verify the generator equation: [S, H_d] = -V_od
-        # Residual should be zero
-        comm_result = normal_form(comm(S, H_d))
-        residual = normal_form(comm_result + V_od)
-
-        # Either residual is empty, or all coefficients simplify to zero
-        all_zero = all(iszero(Symbolics.simplify(coeff)) for (_, coeff) in residual.terms)
-        @test isempty(residual.terms) || all_zero
-    end
-
-    @testset "Method selection" begin
-        # Test explicit method selection via keyword argument
-        @variables Δ ε
-
-        H_d = Δ/2 * σz()
-        V_od = ε * σp()
-        P = Subspace(σz() => -1)
-
-        # All methods should work for simple eigenoperator case
-        S_auto = solve_for_generator(H_d, V_od, P; method = :auto)
-        S_eigen = solve_for_generator(H_d, V_od, P; method = :eigenoperator)
-        S_general = solve_for_generator(H_d, V_od, P; method = :general)
-
-        @test !isempty(S_auto.terms)
-        @test !isempty(S_eigen.terms)
-        @test !isempty(S_general.terms)
-
-        # All should produce valid generators
-        for S in [S_auto, S_eigen, S_general]
-            comm_result = normal_form(comm(S, H_d))
-            residual = normal_form(comm_result + V_od)
-            all_zero =
-                all(iszero(Symbolics.simplify(coeff)) for (_, coeff) in residual.terms)
-            @test isempty(residual.terms) || all_zero
-        end
-    end
-
     QuantumAlgebra.use_σpm(false)
 end

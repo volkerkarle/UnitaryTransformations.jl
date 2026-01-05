@@ -4,9 +4,14 @@
 The key operation in Schrieffer-Wolff is finding S such that the commutator
 with the diagonal Hamiltonian cancels the off-diagonal perturbation.
 
-Two approaches are supported:
-1. Eigenoperator method: For operators O where [H_d, O] = ε·O (TLS, bosons)
-2. Matrix-element method: For general Lie algebras using ⟨i|L⁻¹[X]|j⟩ = Xᵢⱼ/(Eᵢ-Eⱼ)
+The fundamental formula in the energy eigenbasis is:
+    S_{ij} = V_{ij} / (E_i - E_j)
+
+This is derived from [H_d, X] = A ⟹ (E_i - E_j)X_{ij} = A_{ij}.
+
+Two approaches are supported depending on the operator type:
+1. Eigenoperator method: For operators O where [H_d, O] = ε·O (TLS, bosons, N-level)
+2. Matrix-element method: For SU(N) Lie algebras, convert to transition basis first
 
 Uses Symbolics.jl for proper handling of energy denominators like g²/(Δ-ω).
 """
@@ -14,7 +19,6 @@ Uses Symbolics.jl for proper handling of energy denominators like g²/(Δ-ω).
 export solve_for_generator,
     solve_for_generator_lie,
     solve_for_generator_eigenoperator,
-    solve_for_generator_general,
     compute_energy_denominator,
     compute_energy_eigenvalues,
     detect_lie_algebra_system,
@@ -43,23 +47,6 @@ using Symbolics: Num, @variables, simplify_fractions
 
 # Cache for parameter -> Symbolics variable mapping
 const _param_cache = Dict{String,Num}()
-
-"""
-    make_bare_quterm(bares::BaseOpProduct)
-
-Create a QuTerm with only bare operators (no parameters, deltas, etc.).
-This is a helper to avoid issues with internal QuantumAlgebra types.
-"""
-function make_bare_quterm(bares::BaseOpProduct)
-    QuTerm(
-        Int32(0),           # nsuminds
-        QuantumAlgebra.δ[], # δs
-        Param[],            # params
-        ExpVal[],           # expvals
-        Corr[],             # corrs
-        bares,               # bares
-    )
-end
 
 """
     detect_lie_algebra_system(V_od::QuExpr)
@@ -152,10 +139,11 @@ end
 
 Compute the energy denominator for a given off-diagonal term.
 
-For an off-diagonal operator O, if [H_d, O] = ε·O, then the energy denominator is ε.
-This is computed by evaluating [H_d, O] and extracting the coefficient.
+For an off-diagonal operator O, computes ε where [H_d, O] = ε·O.
+This is the energy difference E_i - E_j for the transition that O represents.
 
-Returns the energy denominator as a Symbolics Num expression.
+Returns the energy denominator as a Symbolics Num expression, or `nothing` if
+the operator commutes with H_d (degenerate case).
 """
 function compute_energy_denominator(H_d::QuExpr, term::QuTerm, P::Subspace)
     # Create bare operator (strip params)
@@ -188,35 +176,29 @@ function compute_energy_denominator(H_d::QuExpr, term::QuTerm, P::Subspace)
         end
     end
 
-    # Could not find matching term
+    # Could not find matching term - operator is not an eigenoperator
     return nothing
 end
 
 """
-    solve_for_generator(H_d::QuExpr, V_od::QuExpr, P::Subspace; method::Symbol=:auto)
+    solve_for_generator(H_d::QuExpr, V_od::QuExpr, P::Subspace)
 
 Solve [S, H_d] = -V_od for the generator S.
 
 This is the core equation in Schrieffer-Wolff: we need to find S such that
 the commutator with the diagonal part cancels the off-diagonal perturbation.
 
-## Methods
+The fundamental solution in the energy eigenbasis is:
+    S_{ij} = V_{ij} / (E_i - E_j)
 
-Three methods are available, selected by the `method` keyword:
+Two methods are automatically selected based on operator types:
 
-1. `:eigenoperator` - For operators O where [H_d, O] = ε·O (TLS, bosons).
-   Solve S = O/ε directly for each term.
+1. **Eigenoperator method** (TLS, bosons, N-level transitions): For operators O 
+   where [H_d, O] = ε·O, the solution is S = V/ε directly.
 
-2. `:lie` - For SU(N) Lie algebras. Work in the Cartan-Weyl basis where 
-   transition operators are eigenoperators: S_{ij} = V_{ij}/(E_i - E_j).
-
-3. `:general` - For arbitrary operators. Construct the Liouvillian matrix
-   L where [H_d, O_j] = Σ_i L_{ij} O_i and solve the linear system L·s = -v.
-
-4. `:auto` (default) - Automatically select the best method:
-   - Use `:lie` if Lie algebra generators are detected
-   - Try `:eigenoperator` first, verify it works
-   - Fall back to `:general` if eigenoperator method fails
+2. **Matrix-element method** (SU(N) Lie algebras): Convert to the Cartan-Weyl 
+   (transition) basis where operators ARE eigenoperators, apply S_{ij} = V_{ij}/(E_i - E_j),
+   then convert back.
 
 Uses Symbolics.jl for proper symbolic division, allowing denominators like (Δ - ω).
 
@@ -224,39 +206,14 @@ Uses Symbolics.jl for proper symbolic division, allowing denominators like (Δ -
 - `H_d`: The diagonal (unperturbed) Hamiltonian
 - `V_od`: The off-diagonal perturbation to be eliminated
 - `P`: The subspace defining the block structure
-- `method`: Solution method (:auto, :eigenoperator, :lie, :general)
 
 # Returns
 - `S`: The generator of the transformation
 """
-function solve_for_generator(H_d::QuExpr, V_od::QuExpr, P::Subspace; method::Symbol = :auto)
-    if method == :general
-        return solve_for_generator_general(H_d, V_od, P)
-    end
-
-    if method == :eigenoperator
-        return solve_for_generator_eigenoperator(H_d, V_od, P)
-    end
-
-    if method == :lie
-        lie_info = detect_lie_algebra_system(V_od)
-        if lie_info === nothing
-            error("No Lie algebra operators detected in V_od, cannot use :lie method")
-        end
-        generators = get_generators_for_lie_system(lie_info)
-        return solve_for_generator_lie(
-            H_d,
-            V_od,
-            lie_info.N,
-            generators;
-            algebra_id = lie_info.algebra_id,
-        )
-    end
-
-    # :auto method - try methods in order of preference
-
-    # First, check if V_od contains Lie algebra operators
+function solve_for_generator(H_d::QuExpr, V_od::QuExpr, P::Subspace)
+    # Check if V_od contains Lie algebra operators
     lie_info = detect_lie_algebra_system(V_od)
+
     if lie_info !== nothing
         # Use matrix-element method for Lie algebras
         generators = get_generators_for_lie_system(lie_info)
@@ -269,41 +226,8 @@ function solve_for_generator(H_d::QuExpr, V_od::QuExpr, P::Subspace; method::Sym
         )
     end
 
-    # Try eigenoperator method first (fast path for TLS/bosons)
-    S = solve_for_generator_eigenoperator(H_d, V_od, P)
-
-    # Verify the solution: [S, H_d] should equal -V_od
-    is_valid, residual = verify_generator(S, H_d, V_od)
-
-    if is_valid
-        return S
-    end
-
-    # Check if residual is small (some terms might just need simplification)
-    residual_simplified = simplify_residual(residual)
-    if isempty(residual_simplified.terms)
-        return S
-    end
-
-    # Eigenoperator method failed - fall back to general method
-    @debug "Eigenoperator method incomplete, using general method" residual=residual_simplified
-    return solve_for_generator_general(H_d, V_od, P)
-end
-
-"""
-    simplify_residual(residual::QuExpr)
-
-Simplify the residual expression to check if it's effectively zero.
-"""
-function simplify_residual(residual::QuExpr)
-    result_terms = Dict{QuTerm,Number}()
-    for (term, coeff) in residual.terms
-        simplified = Symbolics.simplify(coeff)
-        if !iszero(simplified)
-            result_terms[term] = simplified
-        end
-    end
-    return QuExpr(result_terms)
+    # Use eigenoperator method for TLS/bosons/N-level transitions
+    return solve_for_generator_eigenoperator(H_d, V_od, P)
 end
 
 """
@@ -311,10 +235,15 @@ end
 
 Solve [S, H_d] = -V_od using the eigenoperator method.
 
-This method works for operators O where [H_d, O] = ε·O (eigenoperators of the adjoint action).
-Examples include σ± for TLS, and bosonic operators a, a† when H_d is a number operator.
+This method works for operators O where [H_d, O] = ε·O (eigenoperators of the 
+adjoint action). The solution is simply S = V/ε.
 
-For each term in V_od, if [H_d, O] = ε·O, then the corresponding term in S is O/ε.
+Examples of eigenoperators:
+- σ± for TLS with H_d ∝ σz: [σz, σ±] = ±2σ±
+- a, a† for bosons with H_d ∝ a†a: [a†a, a] = -a, [a†a, a†] = a†
+- |i⟩⟨j| for N-level with diagonal H_d: [H_d, |i⟩⟨j|] = (E_i - E_j)|i⟩⟨j|
+
+For each term in V_od, the corresponding term in S is V_term / ε.
 """
 function solve_for_generator_eigenoperator(H_d::QuExpr, V_od::QuExpr, P::Subspace)
     # Build result directly to avoid expensive iszero checks in + operator
@@ -328,7 +257,7 @@ function solve_for_generator_eigenoperator(H_d::QuExpr, V_od::QuExpr, P::Subspac
         # Get the full symbolic coefficient of this term in V_od
         numerator = symbolic_coefficient(term, coeff)
 
-        # Compute energy denominator from [H_d, bare_O]
+        # Compute energy denominator from [H_d, bare_O] = ε·bare_O
         denominator = compute_energy_denominator(H_d, term, P)
 
         if denominator === nothing
@@ -337,9 +266,7 @@ function solve_for_generator_eigenoperator(H_d::QuExpr, V_od::QuExpr, P::Subspac
             continue
         end
 
-        # The coefficient for S is numerator / denominator
-        # Don't simplify here to avoid expensive GCD computation
-        # Simplification will happen at the end
+        # The coefficient for S is V / ε = numerator / denominator
         s_coeff = numerator / denominator
 
         # Add to result dictionary directly
@@ -347,327 +274,6 @@ function solve_for_generator_eigenoperator(H_d::QuExpr, V_od::QuExpr, P::Subspac
     end
 
     return QuExpr(result_terms)
-end
-
-"""
-    solve_for_generator_general(H_d::QuExpr, V_od::QuExpr, P::Subspace)
-
-Solve [S, H_d] = -V_od for the generator S using the general method.
-
-This method works for arbitrary operators where [H_d, O] may produce a linear 
-combination of operators (not just a scalar multiple of O).
-
-## Algorithm
-
-1. Extract the operator basis {O_i} from V_od
-2. Compute the Liouvillian matrix L where [H_d, O_j] = Σ_i L_{ij} O_i
-3. Solve the linear system L·s = -v where v are coefficients of V_od in the basis
-
-This reduces to the eigenoperator method when L is diagonal.
-
-## When to use
-
-- When operators mix under commutation with H_d (e.g., coupled modes)
-- When the eigenoperator method fails to find matching terms in [H_d, O]
-- As a fallback for complex operator structures
-
-## Returns
-- `S`: The generator of the transformation
-"""
-function solve_for_generator_general(H_d::QuExpr, V_od::QuExpr, P::Subspace)
-    # Step 1: Extract operator basis from V_od
-    # Each term in V_od defines a basis operator (the bare operator part)
-    # We work with normal-ordered operators
-
-    V_od = normal_form(V_od)
-
-    if isempty(V_od.terms)
-        return QuExpr()  # Nothing to solve
-    end
-
-    # Collect basis: map from bare operator structure to index
-    basis_ops = Dict{BaseOpProduct,Int}()
-    basis_list = BaseOpProduct[]  # Ordered list for indexing
-    v_coeffs = Num[]  # Coefficients of V_od in the basis
-
-    for (term, coeff) in V_od.terms
-        bares = term.bares
-        if !haskey(basis_ops, bares)
-            push!(basis_list, bares)
-            basis_ops[bares] = length(basis_list)
-        end
-        idx = basis_ops[bares]
-        # Ensure v_coeffs is long enough
-        while length(v_coeffs) < idx
-            push!(v_coeffs, Num(0))
-        end
-        # Add the symbolic coefficient
-        v_coeffs[idx] += symbolic_coefficient(term, coeff)
-    end
-
-    n = length(basis_list)
-
-    # Step 2: Compute the Liouvillian matrix L
-    # L[i,j] = coefficient of O_i in [H_d, O_j]
-
-    L = Matrix{Num}(undef, n, n)
-    fill!(L, Num(0))
-
-    for j = 1:n
-        # Create a pure operator from basis_list[j]
-        bare_op = QuExpr(make_bare_quterm(basis_list[j]))
-
-        # Compute [O_j, H_d] (note the order - we need [S, H_d] = -V_od)
-        comm_result = normal_form(comm(bare_op, H_d))
-
-        # Extract coefficients in the basis
-        for (term, coeff) in comm_result.terms
-            bares = term.bares
-            if haskey(basis_ops, bares)
-                i = basis_ops[bares]
-                L[i, j] += symbolic_coefficient(term, coeff)
-            else
-                # The commutator produced an operator not in our basis
-                # This can happen if the basis is incomplete
-                # For now, we'll extend the basis
-                push!(basis_list, bares)
-                basis_ops[bares] = length(basis_list)
-                i = length(basis_list)
-
-                # Extend L and v_coeffs
-                L_new = Matrix{Num}(undef, i, i)
-                fill!(L_new, Num(0))
-                L_new[1:n, 1:n] = L
-                L = L_new
-                L[i, j] = symbolic_coefficient(term, coeff)
-
-                push!(v_coeffs, Num(0))
-                n = i
-            end
-        end
-    end
-
-    # Step 3: Solve L·s = -v
-    # For symbolic matrices, we use Cramer's rule or direct inversion
-    # when the matrix is small, otherwise we need symbolic linear algebra
-
-    s_coeffs = solve_symbolic_linear_system(L, -v_coeffs)
-
-    if s_coeffs === nothing
-        @warn "Could not solve linear system for generator (singular Liouvillian)"
-        return QuExpr()
-    end
-
-    # Step 4: Reconstruct S from the solution
-    result_terms = Dict{QuTerm,Number}()
-
-    for i = 1:length(basis_list)
-        if i > length(s_coeffs)
-            break
-        end
-        s_i = s_coeffs[i]
-        # Skip near-zero coefficients
-        if iszero(Symbolics.simplify(s_i))
-            continue
-        end
-
-        bare_term = make_bare_quterm(basis_list[i])
-        result_terms[bare_term] = s_i
-    end
-
-    return QuExpr(result_terms)
-end
-
-"""
-    solve_symbolic_linear_system(A::Matrix{Num}, b::Vector{Num})
-
-Solve the linear system A·x = b symbolically.
-
-For small systems (n ≤ 4), uses Cramer's rule.
-For larger systems, attempts symbolic Gaussian elimination.
-
-Returns `nothing` if the system is singular.
-"""
-function solve_symbolic_linear_system(A::Matrix{Num}, b::Vector{Num})
-    n = size(A, 1)
-
-    if n == 0
-        return Num[]
-    end
-
-    if n == 1
-        if iszero(Symbolics.simplify(A[1, 1]))
-            return nothing
-        end
-        return [b[1] / A[1, 1]]
-    end
-
-    # For n ≤ 4, use Cramer's rule (explicit formulas)
-    if n == 2
-        return solve_2x2(A, b)
-    elseif n == 3
-        return solve_3x3(A, b)
-    elseif n == 4
-        return solve_4x4(A, b)
-    end
-
-    # For larger systems, use symbolic Gaussian elimination
-    return solve_gaussian(A, b)
-end
-
-"""
-    solve_2x2(A, b)
-
-Solve 2×2 system using Cramer's rule.
-"""
-function solve_2x2(A::Matrix{Num}, b::Vector{Num})
-    det_A = A[1, 1]*A[2, 2] - A[1, 2]*A[2, 1]
-    det_A_simplified = Symbolics.simplify(det_A)
-
-    if iszero(det_A_simplified)
-        return nothing
-    end
-
-    x1 = (b[1]*A[2, 2] - b[2]*A[1, 2]) / det_A
-    x2 = (A[1, 1]*b[2] - A[2, 1]*b[1]) / det_A
-
-    return [x1, x2]
-end
-
-"""
-    solve_3x3(A, b)
-
-Solve 3×3 system using Cramer's rule.
-"""
-function solve_3x3(A::Matrix{Num}, b::Vector{Num})
-    # Determinant using Sarrus' rule
-    det_A =
-        A[1, 1]*(A[2, 2]*A[3, 3] - A[2, 3]*A[3, 2]) -
-        A[1, 2]*(A[2, 1]*A[3, 3] - A[2, 3]*A[3, 1]) +
-        A[1, 3]*(A[2, 1]*A[3, 2] - A[2, 2]*A[3, 1])
-
-    det_A_simplified = Symbolics.simplify(det_A)
-    if iszero(det_A_simplified)
-        return nothing
-    end
-
-    # Cramer's rule for each variable
-    x = Vector{Num}(undef, 3)
-    for i = 1:3
-        A_i = copy(A)
-        A_i[:, i] = b
-        det_i =
-            A_i[1, 1]*(A_i[2, 2]*A_i[3, 3] - A_i[2, 3]*A_i[3, 2]) -
-            A_i[1, 2]*(A_i[2, 1]*A_i[3, 3] - A_i[2, 3]*A_i[3, 1]) +
-            A_i[1, 3]*(A_i[2, 1]*A_i[3, 2] - A_i[2, 2]*A_i[3, 1])
-        x[i] = det_i / det_A
-    end
-
-    return x
-end
-
-"""
-    solve_4x4(A, b)
-
-Solve 4×4 system using Cramer's rule.
-"""
-function solve_4x4(A::Matrix{Num}, b::Vector{Num})
-    det_A = det_4x4(A)
-    det_A_simplified = Symbolics.simplify(det_A)
-
-    if iszero(det_A_simplified)
-        return nothing
-    end
-
-    x = Vector{Num}(undef, 4)
-    for i = 1:4
-        A_i = copy(A)
-        A_i[:, i] = b
-        x[i] = det_4x4(A_i) / det_A
-    end
-
-    return x
-end
-
-"""
-    det_4x4(A)
-
-Compute determinant of 4×4 matrix using cofactor expansion.
-"""
-function det_4x4(A::Matrix{Num})
-    # Expand along first row
-    d = Num(0)
-    for j = 1:4
-        minor = [A[i, k] for i in 2:4, k in 1:4 if k != j]
-        minor_det =
-            minor[1, 1]*(minor[2, 2]*minor[3, 3] - minor[2, 3]*minor[3, 2]) -
-            minor[1, 2]*(minor[2, 1]*minor[3, 3] - minor[2, 3]*minor[3, 1]) +
-            minor[1, 3]*(minor[2, 1]*minor[3, 2] - minor[2, 2]*minor[3, 1])
-        d += (-1)^(1+j) * A[1, j] * minor_det
-    end
-    return d
-end
-
-"""
-    solve_gaussian(A, b)
-
-Solve linear system using symbolic Gaussian elimination with partial pivoting.
-"""
-function solve_gaussian(A::Matrix{Num}, b::Vector{Num})
-    n = size(A, 1)
-
-    # Create augmented matrix
-    aug = Matrix{Num}(undef, n, n+1)
-    aug[:, 1:n] = A
-    aug[:, n+1] = b
-
-    # Forward elimination
-    for k = 1:(n-1)
-        # Find pivot (simplified symbolic check)
-        pivot_row = k
-        for i = (k+1):n
-            # In symbolic case, we just use the first non-zero entry
-            if iszero(Symbolics.simplify(aug[pivot_row, k])) &&
-               !iszero(Symbolics.simplify(aug[i, k]))
-                pivot_row = i
-            end
-        end
-
-        # Swap rows if needed
-        if pivot_row != k
-            aug[k, :], aug[pivot_row, :] = aug[pivot_row, :], aug[k, :]
-        end
-
-        # Check for zero pivot
-        if iszero(Symbolics.simplify(aug[k, k]))
-            continue  # Try to continue (might still work)
-        end
-
-        # Eliminate below pivot
-        for i = (k+1):n
-            if !iszero(Symbolics.simplify(aug[i, k]))
-                factor = aug[i, k] / aug[k, k]
-                for j = k:(n+1)
-                    aug[i, j] -= factor * aug[k, j]
-                end
-            end
-        end
-    end
-
-    # Back substitution
-    x = Vector{Num}(undef, n)
-    for i = n:-1:1
-        if iszero(Symbolics.simplify(aug[i, i]))
-            return nothing  # Singular
-        end
-        x[i] = aug[i, n+1]
-        for j = (i+1):n
-            x[i] -= aug[i, j] * x[j]
-        end
-        x[i] /= aug[i, i]
-    end
-
-    return x
 end
 
 """
@@ -749,10 +355,13 @@ end
 
 Convert an off-diagonal operator from Gell-Mann basis to Cartan-Weyl basis.
 
-For SU(3), the Gell-Mann matrices λ₁...λ₆ are converted to raising/lowering operators:
-- E₁₂ = (λ₁ + iλ₄)/2,  E₂₁ = (λ₁ - iλ₄)/2  (couple states 1↔2)
-- E₁₃ = (λ₂ + iλ₅)/2,  E₃₁ = (λ₂ - iλ₅)/2  (couple states 1↔3)
-- E₂₃ = (λ₃ + iλ₆)/2,  E₃₂ = (λ₃ - iλ₆)/2  (couple states 2↔3)
+The Cartan-Weyl basis uses transition operators |i⟩⟨j| which ARE eigenoperators
+of the diagonal Hamiltonian: [H_d, |i⟩⟨j|] = (E_i - E_j)|i⟩⟨j|.
+
+For SU(3), the Gell-Mann matrices λ₁...λ₆ are converted to:
+- E₁₂ = |1⟩⟨2|, E₂₁ = |2⟩⟨1| (from λ₁, λ₄)
+- E₁₃ = |1⟩⟨3|, E₃₁ = |3⟩⟨1| (from λ₂, λ₅)
+- E₂₃ = |2⟩⟨3|, E₃₂ = |3⟩⟨2| (from λ₃, λ₆)
 
 Returns a Dict mapping (i,j) => coefficient for transition i→j.
 """
@@ -779,11 +388,10 @@ function gellmann_to_cartan_weyl(V_od::QuExpr, N::Int, algebra_id::UInt16)
         # Get the matrix representation
         gm = QuantumAlgebra.gellmann_matrix(N, gen_idx)
 
-        # Extract off-diagonal elements
+        # Extract off-diagonal elements: V_{ij} = coeff * ⟨i|λₖ|j⟩
         for i = 1:N
             for j = 1:N
                 if i != j && !iszero(gm[i, j])
-                    # Matrix element ⟨i|λₖ|j⟩ contributes to E_{ij}
                     key = (i, j)
                     matrix_elem = gm[i, j]
                     contribution = sym_coeff * matrix_elem
@@ -813,17 +421,13 @@ For SU(3), the off-diagonal matrix units are:
     |1⟩⟨2| = λ₁ + iλ₄,  |2⟩⟨1| = λ₁ - iλ₄
     |1⟩⟨3| = λ₂ + iλ₅,  |3⟩⟨1| = λ₂ - iλ₅
     |2⟩⟨3| = λ₃ + iλ₆,  |3⟩⟨2| = λ₃ - iλ₆
-
-So for S = S[i,j] |i⟩⟨j| + S[j,i] |j⟩⟨i| (Hermitian):
-    Real Gell-Mann coeff = S[i,j] + S[j,i]
-    Imag Gell-Mann coeff = i(S[i,j] - S[j,i])
 """
 function cartan_weyl_to_gellmann(
     transitions::Dict{Tuple{Int,Int},T},
     N::Int,
     generators::Tuple,
 ) where {T}
-    # SU(3) specific: map transition pairs to Gell-Mann generator pairs
+    # SU(N) specific: map transition pairs to Gell-Mann generator pairs
     # (i,j) with i<j maps to (real_gen, imag_gen)
     if N == 3
         transition_to_gen = Dict(
@@ -851,8 +455,8 @@ function cartan_weyl_to_gellmann(
         push!(processed, pair)
 
         # Get both transitions
-        S_up = get(transitions, pair, Num(0))           # S[i,j] where i<j (raising)
-        S_down = get(transitions, (pair[2], pair[1]), Num(0))  # S[j,i] (lowering)
+        S_up = get(transitions, pair, Num(0))           # S[i,j] where i<j
+        S_down = get(transitions, (pair[2], pair[1]), Num(0))  # S[j,i]
 
         # Get the Gell-Mann generator indices
         real_gen, imag_gen = transition_to_gen[pair]
@@ -861,7 +465,6 @@ function cartan_weyl_to_gellmann(
         # |j⟩⟨i| = λ_real - i λ_imag
         #
         # S = S_up |i⟩⟨j| + S_down |j⟩⟨i|
-        #   = S_up (λ_real + i λ_imag) + S_down (λ_real - i λ_imag)
         #   = (S_up + S_down) λ_real + i(S_up - S_down) λ_imag
 
         coeff_real = S_up + S_down
@@ -881,9 +484,13 @@ end
 Solve [S, H_d] = -V_od for the generator S using the matrix-element method.
 
 This approach works for any SU(N) Lie algebra by:
-1. Converting V_od to Cartan-Weyl basis (transition operators E_{ij})
-2. Computing S_{ij} = V_{ij} / (Eᵢ - Eⱼ) for each transition
-3. Converting S back to Gell-Mann basis
+1. Computing energy eigenvalues E_i from H_d
+2. Converting V_od to Cartan-Weyl basis (transition operators |i⟩⟨j|)
+3. Applying the fundamental formula: S_{ij} = V_{ij} / (E_i - E_j)
+4. Converting S back to Gell-Mann basis
+
+The key insight is that transition operators |i⟩⟨j| ARE eigenoperators:
+    [H_d, |i⟩⟨j|] = (E_i - E_j)|i⟩⟨j|
 
 # Arguments
 - `H_d`: The diagonal Hamiltonian (in diagonal generators only)
