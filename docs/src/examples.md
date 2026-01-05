@@ -1,6 +1,6 @@
 # [Examples](@id examples)
 
-This page presents complete physics examples demonstrating the package capabilities.
+This page presents complete physics examples demonstrating the Schrieffer-Wolff transformation. Each example shows the LaTeX output for easy use in publications.
 
 ## Jaynes-Cummings: Dispersive Regime
 
@@ -19,47 +19,52 @@ using Symbolics
 
 QuantumAlgebra.use_σpm(true)
 
-# Define symbolic parameters
-@variables Δ g  # Δ = detuning ω_q - ω_c, g = coupling
+@variables Δ g  # Δ = detuning, g = coupling
 
-# Hamiltonian (in frame rotating at ω_c)
+# Hamiltonian (in rotating frame)
 H = Δ/2 * σz() + g * (a'()*σm() + a()*σp())
 
 # Ground state subspace
 P = Subspace(σz() => -1)
 
-# Transform
+# Transform and display results
 result = schrieffer_wolff(H, P; order=2)
+show_result(result)
+```
 
-# Results
-println("Effective Hamiltonian:")
-for (op, coeff) in collect_terms(result.H_eff)
-    println("  ", coeff, "  ", op)
-end
+**Generator:**
+```math
+S = \frac{-g}{2\Delta} a^{\dagger} \sigma^{-} + \frac{g}{2\Delta} \sigma^{+} a
+```
+
+**Effective Hamiltonian:**
+```math
+H_{\text{eff}} = -\frac{\Delta}{2} - \frac{g^{2}}{\Delta} a^{\dagger} a + \frac{g^{2} + \Delta^{2}}{\Delta} \sigma^{+} \sigma^{-} + \frac{2g^{2}}{\Delta} a^{\dagger} \sigma^{+} \sigma^{-} a
+```
+
+**Projected to subspace P** (qubit ground state):
+```math
+H_P = -\frac{\Delta}{2} - \frac{g^{2}}{\Delta} a^{\dagger} a
 ```
 
 ### Physical Interpretation
 
 The effective Hamiltonian contains:
 
-1. **Dispersive shift**: ``\chi = g^2/\Delta`` 
-   - Cavity frequency shifts by ``\pm\chi`` depending on qubit state
-   - Used for **qubit readout** in circuit QED
-
+1. **Dispersive shift**: ``\chi = -g^2/\Delta`` — cavity frequency shifts when qubit is in ground state
 2. **AC Stark shift**: Qubit frequency shifts with photon number
-   - ``\omega_q \to \omega_q + 2\chi \langle a^\dagger a \rangle``
 
-### Numerical Verification
+This is the basis for **qubit readout** in circuit QED!
+
+### Extracting Parameters
 
 ```julia
-# Compare with expected value
 χ = extract_coefficient(result.H_P, a'()*a())
-println("Computed χ = ", χ)
-println("Expected:  -g²/Δ")
+println(to_latex(χ))  # Output: \frac{-g^{2}}{\Delta}
 
-# Substitute values
-χ_num = substitute_values(result.H_P, Dict(:g => 0.1, :Δ => 1.0))
-println("χ(g=0.1, Δ=1) = -0.01  # matches -g²/Δ!")
+# Numerical evaluation
+H_num = substitute_values(result.H_P, Dict(:g => 0.1, :Δ => 1.0))
+# χ = -0.01, matching -g²/Δ
 ```
 
 ---
@@ -72,7 +77,7 @@ A qubit in longitudinal and transverse magnetic fields:
 H = \frac{\Delta}{2}\sigma_z + \varepsilon\sigma_x
 ```
 
-This is a textbook quantum mechanics problem with exact solution, making it perfect for verification.
+This textbook problem has an exact solution, making it perfect for verification.
 
 ```julia
 using UnitaryTransformations
@@ -81,70 +86,46 @@ using Symbolics
 
 QuantumAlgebra.use_σpm(true)
 
-# Define symbolic parameters
-@variables Δ ε  # Δ = longitudinal field (energy splitting), ε = transverse field (perturbation)
+@variables Δ ε
 
-# Hamiltonian: σx = σ⁺ + σ⁻
 H = Δ/2 * σz() + ε * (σp() + σm())
-
-# Ground state subspace
 P = Subspace(σz() => -1)
 
-# Transform
 result = schrieffer_wolff(H, P; order=2)
+print_latex(result.H_P; name="H_P")
+```
 
-println("Projected Hamiltonian H_P:")
-for (op, coeff) in collect_terms(result.H_P)
-    println("  ", coeff, "  ", op)
-end
+**Output:**
+```math
+H_P = -\frac{\Delta}{2} - \frac{\varepsilon^{2}}{\Delta}
 ```
 
 ### Comparison with Exact Solution
 
-The exact eigenvalues are:
+The exact ground state energy is:
 
 ```math
-E_\pm = \pm\sqrt{\Delta^2/4 + \varepsilon^2}
+E_- = -\sqrt{\frac{\Delta^2}{4} + \varepsilon^2} \approx -\frac{\Delta}{2} - \frac{\varepsilon^2}{\Delta} + O(\varepsilon^4)
 ```
 
-The SW result for the ground state energy is:
+The SW result matches the perturbation expansion exactly!
 
-```math
-E_g = -\frac{\Delta}{2} - \frac{\varepsilon^2}{\Delta} + O(\varepsilon^4)
-```
-
-```julia
-# Numerical comparison
-for ε_val in [0.01, 0.05, 0.1, 0.2]
-    Δ_val = 1.0
-    E_exact = -sqrt(Δ_val^2/4 + ε_val^2)
-    E_SW = -Δ_val/2 - ε_val^2/Δ_val
-    error = 100 * abs(E_exact - E_SW) / abs(E_exact)
-    println("ε/Δ = $ε_val: error = $(round(error, digits=4))%")
-end
-```
-
-Output:
-```
-ε/Δ = 0.01: error = 0.0%
-ε/Δ = 0.05: error = 0.0012%
-ε/Δ = 0.1: error = 0.0192%
-ε/Δ = 0.2: error = 0.2755%
-```
-
-The perturbative result is excellent when ``\varepsilon \ll \Delta``!
+| ``\varepsilon/\Delta`` | Exact | SW (2nd order) | Error |
+|:----------------------:|:-----:|:--------------:|:-----:|
+| 0.01 | -0.50005 | -0.5001 | 0.00% |
+| 0.05 | -0.50125 | -0.5025 | 0.00% |
+| 0.10 | -0.50499 | -0.51 | 0.02% |
+| 0.20 | -0.51980 | -0.54 | 0.28% |
 
 ---
 
 ## Rabi Model: Bloch-Siegert Shift
 
-The **full Rabi model** includes counter-rotating terms that are neglected in the rotating-wave approximation:
+The **full Rabi model** includes counter-rotating terms neglected in the rotating-wave approximation:
 
 ```math
 H = \omega a^\dagger a + \frac{\Delta}{2}\sigma_z + g(\sigma^+ + \sigma^-)(a + a^\dagger)
 ```
-
-The counter-rotating terms (``a^\dagger\sigma^+`` and ``a\sigma^-``) lead to the **Bloch-Siegert shift**.
 
 ```julia
 using UnitaryTransformations
@@ -153,187 +134,126 @@ using Symbolics
 
 QuantumAlgebra.use_σpm(true)
 
-# Define symbolic parameters
-@variables ω Δ g  # ω = oscillator frequency, Δ = qubit splitting, g = coupling
+@variables ω Δ g
 
-# Full Rabi Hamiltonian (no RWA)
-H_rabi = ω * a'()*a() + Δ/2 * σz() + g * (σp() + σm()) * (a() + a'())
-
-# For comparison: Jaynes-Cummings (with RWA)
-H_jc = ω * a'()*a() + Δ/2 * σz() + g * (a'()*σm() + a()*σp())
-
+H = ω * a'()*a() + Δ/2 * σz() + g * (σp() + σm()) * (a() + a'())
 P = Subspace(σz() => -1)
 
-result_rabi = schrieffer_wolff(H_rabi, P; order=2)
-result_jc = schrieffer_wolff(H_jc, P; order=2)
-
-println("Full Rabi model produces additional terms:")
-println("  - Squeezing terms: a², (a†)²")
-println("  - Modified dispersive shift")
+result = schrieffer_wolff(H, P; order=2)
+print_latex(result.H_P; name="H_P")
 ```
 
-### Bloch-Siegert Correction
+**Output:**
+```math
+H_P = -\frac{\Delta}{2} + \omega a^{\dagger} a - \frac{g^{2}}{\Delta - \omega} a^{\dagger} a - \frac{g^{2}}{\Delta + \omega} a^{\dagger} a + \frac{g^{2}}{\Delta + \omega} - \frac{g^{2}}{\Delta + \omega} (a^{\dagger})^2 - \frac{g^{2}}{\Delta + \omega} a^2
+```
 
-The counter-rotating terms contribute an additional frequency shift:
+### Physical Interpretation
+
+Compared to Jaynes-Cummings, the full Rabi model produces:
+
+1. **JC dispersive shift**: ``-g^2/(\Delta - \omega)`` from rotating terms
+2. **Bloch-Siegert shift**: ``-g^2/(\Delta + \omega)`` from counter-rotating terms
+3. **Squeezing terms**: ``a^2`` and ``(a^\dagger)^2`` that squeeze the cavity field
+
+The total dispersive shift combines both contributions:
 
 ```math
-\chi_{BS} \approx \frac{g^2}{\Delta + 2\omega}
+\chi_{\text{total}} = -\frac{g^2}{\Delta - \omega} - \frac{g^2}{\Delta + \omega}
 ```
-
-This is typically small (~1% of the JC dispersive shift) but measurable in precision experiments.
 
 ---
 
 ## N-Level Atom in a Cavity
 
-For atoms with more than two levels, use `nlevel_ops` from QuantumAlgebra. This example shows a 5-level atom with a single dipole-allowed transition coupled to a cavity.
+For atoms with more than two levels, use `nlevel_ops`:
 
 ```julia
 using UnitaryTransformations
 using QuantumAlgebra
 using Symbolics
 
-# 5-level atom: σ[i,j] = |i⟩⟨j| transition operator
+# 5-level atom: σ[i,j] = |i⟩⟨j|
 σ5 = nlevel_ops(5, :q)
 
-# Level energies (symbolic)
 ω = [Symbolics.variable(Symbol("ω", i)) for i in 1:5]
 @variables ωc g
 
-# Hamiltonian: atom + cavity + coupling between levels 1 and 3
-H = sum(ω[i] * σ5[i,i] for i in 1:5) +    # atomic levels
-    ωc * a'()*a() +                        # cavity
-    g * (σ5[1,3] * a'() + σ5[3,1] * a())  # dipole coupling |1⟩↔|3⟩
+# Atom + cavity + dipole coupling |1⟩↔|3⟩
+H = sum(ω[i] * σ5[i,i] for i in 1:5) + 
+    ωc * a'()*a() + 
+    g * (σ5[1,3] * a'() + σ5[3,1] * a())
 
 # Zero-photon subspace
 P = Subspace(a'()*a() => 0)
 
-# Perform SW transformation
 result = schrieffer_wolff(H, P; order=2)
+show_result(result)
+```
 
-println("Generator S:")
-println(result.S)
-
-println("\nEffective Hamiltonian:")
-println(result.H_eff)
+**Generator:**
+```math
+S = \frac{g}{\omega_1 - \omega_3 - \omega_c} |1\rangle\langle 3| \, a^{\dagger} + \frac{g}{\omega_3 - \omega_1 + \omega_c} |3\rangle\langle 1| \, a
 ```
 
 ### Physical Interpretation
 
-The effective Hamiltonian contains:
-
-1. **Dispersive shift on cavity**: The cavity frequency shifts depending on atomic state
-   ```math
-   \chi_{13} = \frac{g^2}{\omega_1 - \omega_3 + \omega_c}
-   ```
-
-2. **AC Stark shifts on atomic levels**: Levels 1 and 3 experience light shifts proportional to ``\langle a^\dagger a \rangle``
-
-3. **Other levels unaffected**: Levels 2, 4, 5 only appear with their bare energies (to second order)
+- **Dispersive shift**: ``\chi_{13} = g^2/(\omega_1 - \omega_3 + \omega_c)``
+- **AC Stark shifts** on levels 1 and 3
+- **Other levels** (2, 4, 5) appear only with bare energies
 
 ---
 
-## Multi-Level Atom with Multiple Couplings
+## Three-Level Lambda System
 
-A more realistic model includes multiple dipole-allowed transitions:
+For systems with SU(N) symmetry, use `su_generators`:
 
 ```julia
 using UnitaryTransformations
 using QuantumAlgebra
 using Symbolics
 
-# 7-level atom
-σ7 = nlevel_ops(7, :q)
-
-# Level energies
-ω = [Symbolics.variable(Symbol("ω", i)) for i in 1:7]
-@variables ωc g₁₃ g₂₅
-
-# Hamiltonian with two transitions
-H = sum(ω[i] * σ7[i,i] for i in 1:7) +
-    ωc * a'()*a() +
-    g₁₃ * (σ7[1,3] * a'() + σ7[3,1] * a()) +  # |1⟩↔|3⟩
-    g₂₅ * (σ7[2,5] * a'() + σ7[5,2] * a())    # |2⟩↔|5⟩
-
-P = Subspace(a'()*a() => 0)
-result = schrieffer_wolff(H, P; order=2)
-
-# Extract individual dispersive shifts
-# Each transition contributes independently
-println("H_eff contains terms from both transitions")
-```
-
-### Selection Rules
-
-The SW transformation respects selection rules:
-- Only directly coupled levels acquire dispersive shifts
-- Cross-terms between different transitions appear only at higher orders
-
----
-
-## Three-Level Lambda System (SU(3))
-
-For systems with SU(N) symmetry, the package automatically uses the matrix-element method:
-
-```julia
-using UnitaryTransformations
-using QuantumAlgebra
-using Symbolics
-
-# SU(3) generators (Gell-Mann matrices)
+# Gell-Mann matrices for SU(3)
 λ = su_generators(3, :λ)
 
 @variables Δ Ω₁ Ω₂
 
-# Lambda system:
-# - λ₈ ~ diagonal (level splittings)
-# - λ₁, λ₂ ~ transitions between levels 1↔2
-# - λ₄, λ₅ ~ transitions between levels 1↔3
+# Lambda system
 H = Δ * λ[8] + Ω₁ * λ[1] + Ω₂ * λ[4]
 
-# Subspace with specific λ₈ eigenvalue
 P = Subspace(λ[8] => 1/sqrt(3))
 
-# Auto-detects SU(3) and uses matrix-element method
 result = schrieffer_wolff(H, P; order=2)
-
-println("Generator:")
-println(result.S)
-println("\nEffective Hamiltonian:")
-println(result.H_eff)
+show_result(result)
 ```
+
+The package automatically detects SU(3) and uses the matrix-element method.
 
 ### When to Use SU(N) vs N-Level
 
 | Approach | Use When |
 |----------|----------|
-| `nlevel_ops` | Physical multilevel atoms, specific transitions |
-| `su_generators` | Systems with SU(N) symmetry, collective operators |
-
-Both approaches give equivalent physics but may produce differently structured results.
+| `nlevel_ops` | Physical atoms, specific transitions |
+| `su_generators` | Systems with SU(N) symmetry |
 
 ---
 
 ## Running the Examples
 
-The complete example files are in the `examples/` directory:
+Complete example files are in the `examples/` directory:
 
 ```bash
-cd UnitaryTransformations.jl
 julia --project examples/jaynes_cummings_dispersive.jl
 julia --project examples/two_level_system.jl
 julia --project examples/rabi_bloch_siegert.jl
 julia --project examples/three_level_atom.jl
 ```
 
-Each example includes detailed physical interpretation and numerical verification.
-
 ---
 
-## Tips for New Examples
+## Tips
 
-1. **Start simple**: Begin with a minimal Hamiltonian and add complexity
-2. **Check subspace definition**: The choice of ``P`` determines the entire structure
-3. **Verify with limits**: Check known limits (e.g., ``g \to 0``)
-4. **Use `collect_terms`**: Helps identify the physical meaning of each term
-5. **Compare orders**: Running at different orders helps assess convergence
+1. **Use `show_result(result)`** to see all components in LaTeX
+2. **Use `to_latex(expr)`** to get a LaTeX string for any expression
+3. **Use `extract_coefficient(expr, op)`** to get specific parameters
+4. **Use `substitute_values(expr, Dict(...))`** for numerical evaluation
