@@ -21,9 +21,8 @@ makedocs(;
     ),
     pages = [
         "Home" => "index.md",
-        "Theory" => "theory.md",
-        "Tutorial" => "tutorial.md",
-        "Examples" => "examples.md",
+        "Schrieffer-Wolff" => "schrieffer_wolff.md",
+        "Magnus Expansion" => "magnus.md",
         "API Reference" => "api.md",
     ],
     warnonly = [:missing_docs, :cross_references, :docs_block],
