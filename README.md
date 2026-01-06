@@ -4,21 +4,7 @@
 [![Documentation](https://img.shields.io/badge/docs-dev-blue.svg)](https://volkerkarle.github.io/UnitaryTransformations.jl/dev/)
 [![Code Style: Blue](https://img.shields.io/badge/code%20style-blue-4495d1.svg)](https://github.com/JuliaDiff/BlueStyle)
 
-A Julia package for performing **symbolic unitary transformations** on quantum Hamiltonians.
-
-## Overview
-
-Unitary transformations are fundamental tools in quantum mechanics for simplifying Hamiltonians, eliminating unwanted couplings, and deriving effective low-energy theories. This package provides symbolic implementations of several important transformations:
-
-| Transformation | Purpose | Status |
-|----------------|---------|--------|
-| **Schrieffer-Wolff** | Block-diagonalize H, derive effective low-energy Hamiltonians | Implemented |
-| **Magnus Expansion** | Effective Hamiltonians for periodically driven (Floquet) systems | Implemented |
-| **Lang-Firsov** | Eliminate linear electron-phonon coupling (polaron transformation) | Planned |
-| **Bogoliubov** | Diagonalize quadratic bosonic Hamiltonians | Planned |
-| **Holstein-Primakoff** | Map spin operators to bosonic operators | Planned |
-
-Built on [QuantumAlgebra.jl](https://github.com/jfeist/QuantumAlgebra.jl) for symbolic quantum operator algebra and [Symbolics.jl](https://github.com/JuliaSymbolics/Symbolics.jl) for symbolic mathematics.
+A Julia package for **symbolic unitary transformations** on quantum Hamiltonians. Built on [QuantumAlgebra.jl](https://github.com/jfeist/QuantumAlgebra.jl) and [Symbolics.jl](https://github.com/JuliaSymbolics/Symbolics.jl).
 
 ## Installation
 
@@ -27,191 +13,80 @@ using Pkg
 Pkg.add(url="https://github.com/volkerkarle/UnitaryTransformations.jl")
 ```
 
-## Quick Example: Dispersive Readout
+## Quick Example
 
-The Schrieffer-Wolff transformation derives the dispersive Hamiltonian used for qubit readout in circuit QED:
+Derive the dispersive shift for qubit readout in circuit QED:
 
 ```julia
 using UnitaryTransformations, QuantumAlgebra, Symbolics
 
 QuantumAlgebra.use_σpm(true)
-@variables Δ g  # Δ = detuning, g = coupling
+@variables Δ g
 
 # Jaynes-Cummings Hamiltonian
 H = Δ/2 * σz() + g * (a'()*σm() + a()*σp())
 
-# Transform to eliminate qubit-cavity coupling
+# Schrieffer-Wolff transformation
 P = Subspace(σz() => -1)  # qubit ground state
 result = schrieffer_wolff(H, P; order=2)
 
-println(result.H_P)
-# Output: -Δ/2 + (-g²/Δ) a†a
-#                 ^^^^^^ dispersive shift χ = -g²/Δ
+println(result.H_P)  # -Δ/2 + (-g²/Δ) a†a  ← dispersive shift χ = -g²/Δ
 ```
-
-## Supported Quantum Systems
-
-The package handles a wide range of quantum systems:
-
-| System Type | Operators | Example Use |
-|-------------|-----------|-------------|
-| **Two-level systems** | `σx()`, `σy()`, `σz()`, `σp()`, `σm()` | Qubits, spin-1/2 |
-| **Bosonic modes** | `a()`, `a'()` | Cavities, phonons |
-| **N-level atoms** | `nlevel_ops(N, :name)` | Multi-level atoms, transmons |
-| **SU(N) algebras** | `su_generators(N, :name)` | Collective spin, Lambda systems |
-| **Hybrid systems** | Combinations | Atom + cavity, spin + phonon |
-
-### Example: Multi-Level Atom + Cavity
-
-```julia
-using UnitaryTransformations, QuantumAlgebra, Symbolics
-
-# 5-level atom with transition operators σ[i,j] = |i⟩⟨j|
-σ5 = nlevel_ops(5, :q)
-
-# Symbolic level energies
-ω = [Symbolics.variable(Symbol("ω", i)) for i in 1:5]
-@variables ωc g
-
-# Atom + cavity + dipole coupling between levels 1↔3
-H = sum(ω[i] * σ5[i,i] for i in 1:5) + ωc * a'()*a() + 
-    g * (σ5[1,3] * a'() + σ5[3,1] * a())
-
-# SW transformation in cavity vacuum
-P = Subspace(a'()*a() => 0)
-result = schrieffer_wolff(H, P; order=2)
-
-# Result: dispersive shifts, AC Stark corrections
-```
-
-## Key Features
-
-### Symbolic Results
-
-Unlike numerical approaches, this package produces **analytical expressions**:
-
-```julia
-χ = extract_coefficient(result.H_P, a'()*a())
-# Returns: -g²/Δ  (symbolic, not floating-point!)
-```
-
-### Automatic Method Selection
-
-The package automatically chooses the optimal algorithm based on operator types:
-
-| Operator Type | Method | Description |
-|---------------|--------|-------------|
-| TLS, bosons, N-level | Eigenoperator | Uses `[H₀, O] = εO` structure |
-| SU(N) generators | Matrix-element | Works in Cartan-Weyl basis |
-
-### Arbitrary Perturbation Order
-
-Higher orders can be computed with parallel acceleration:
-
-```julia
-result_2nd = schrieffer_wolff(H, P; order=2)
-result_4th = schrieffer_wolff(H, P; order=4, parallel=true)  # Multi-threaded
-```
-
-Start Julia with threads for best performance: `julia -t 4`
-
-| Order | Time (4 threads) | Use Case |
-|-------|------------------|----------|
-| 2 | ~50 ms | Dispersive shifts |
-| 4 | ~0.4 s | Kerr nonlinearity, Bloch-Siegert |
-| 5 | ~1.5 s | Higher-order corrections |
-| 6 | ~50 s | Research applications |
-
-### Verified Implementation
-
-- Generator equation `[S, H₀] = -V` verified exactly
-- Numerical accuracy <0.02% in perturbative regime
-- 253 tests covering TLS, bosons, SU(3), N-level systems, and Magnus expansion
-
-## Documentation
-
-- **[Tutorial](https://volkerkarle.github.io/UnitaryTransformations.jl/dev/tutorial/)**: Step-by-step introduction
-- **[Theory](https://volkerkarle.github.io/UnitaryTransformations.jl/dev/theory/)**: Mathematical foundations (BCH, SW derivation)
-- **[Examples](https://volkerkarle.github.io/UnitaryTransformations.jl/dev/examples/)**: Physics applications (JC, Rabi, N-level)
-- **[API Reference](https://volkerkarle.github.io/UnitaryTransformations.jl/dev/api/)**: Function documentation
 
 ## Transformations
 
-### Schrieffer-Wolff (Implemented)
+| Transformation | Purpose | Status |
+|----------------|---------|--------|
+| **Schrieffer-Wolff** | Block-diagonalize H, derive effective low-energy Hamiltonians | Implemented |
+| **Magnus Expansion** | Effective Hamiltonians for periodically driven (Floquet) systems | Implemented |
+| **Lang-Firsov** | Polaron transformation (electron-phonon coupling) | Planned |
+| **Bogoliubov** | Diagonalize quadratic bosonic Hamiltonians | Planned |
+| **Holstein-Primakoff** | Map spin operators to bosons | Planned |
 
-Finds a unitary U = eˢ that block-diagonalizes H = H₀ + V:
+## Supported Systems
 
-```
-H_eff = eˢ H e⁻ˢ = H₀ + ½[S, V] + O(V³)
-```
+| System | Operators |
+|--------|-----------|
+| Two-level systems | `σx()`, `σy()`, `σz()`, `σp()`, `σm()` |
+| Bosonic modes | `a()`, `a'()` |
+| N-level atoms | `nlevel_ops(N, :name)` |
+| SU(N) algebras | `su_generators(N, :name)` |
+| Hybrid systems | Any combination |
 
-The generator S satisfies `[S, H₀] = -V`. 
+## Features
 
-**Applications**:
-- Dispersive readout in circuit QED
-- Exchange interactions (t-J model from Hubbard)
-- Effective spin models
-- Adiabatic elimination of fast modes
-
-### Magnus Expansion (Implemented)
-
-Computes effective time-independent Hamiltonians for periodically driven systems:
+- **Symbolic results**: Get analytical expressions like `-g²/Δ`, not floating-point numbers
+- **Arbitrary perturbation order**: Compute to order 2, 4, 6+ with optional parallel acceleration
+- **Automatic method selection**: Eigenoperator method for TLS/bosons, matrix-element method for SU(N)
 
 ```julia
-using UnitaryTransformations, QuantumAlgebra, Symbolics
+# Higher-order with parallelization
+result = schrieffer_wolff(H, P; order=4, parallel=true)
+```
 
-QuantumAlgebra.use_σpm(true)
+## Magnus Expansion
+
+For periodically driven systems H(t) = Σₙ Hₙ e^{inωt}:
+
+```julia
 @variables Δ Ω ω
 
-# Circularly driven qubit: H(t) = Δ/2 σz + Ω/2 (e^{iωt} σ⁺ + e^{-iωt} σ⁻)
-modes = Dict(
-    0  => Δ/2 * σz(),
-    1  => Ω/2 * σp(),
-    -1 => Ω/2 * σm()
-)
-
+modes = Dict(0 => Δ/2 * σz(), 1 => Ω/2 * σp(), -1 => Ω/2 * σm())
 result = magnus_expansion(modes, ω; order=4)
-println(result.H_eff)
-# Output: Δ/2 σz - Ω²/(4ω) σz + O(Ω²Δ/ω²)
-#                  ^^^^^^^^^^^ Bloch-Siegert shift
+# Computes Bloch-Siegert shift and higher-order corrections
 ```
 
-**Applications**: AC Stark shifts, Floquet engineering, dynamical decoupling
+## Documentation
 
-### Lang-Firsov (Planned)
-
-Eliminates linear electron-phonon coupling via phonon displacement:
-
-```
-U = exp(∑ₖ gₖ/ωₖ (bₖ† - bₖ) n)
-```
-
-**Applications**: Polarons, phonon sidebands, Franck-Condon physics
-
-### Bogoliubov (Planned)
-
-Diagonalizes quadratic bosonic Hamiltonians:
-
-```
-H = ∑ₖ ωₖ aₖ†aₖ + Δₖ(aₖa₋ₖ + h.c.)  →  H = ∑ₖ Ωₖ βₖ†βₖ
-```
-
-**Applications**: BCS superconductivity, squeezed states, magnons
-
-### Holstein-Primakoff (Planned)
-
-Maps spin-S operators to bosons for large-S expansions:
-
-```
-S⁺ → √(2S) √(1 - a†a/2S) a
-```
-
-**Applications**: Spin waves, magnon-polaritons
+- [Tutorial](https://volkerkarle.github.io/UnitaryTransformations.jl/dev/tutorial/) — Step-by-step introduction
+- [Theory](https://volkerkarle.github.io/UnitaryTransformations.jl/dev/theory/) — Mathematical foundations
+- [Examples](https://volkerkarle.github.io/UnitaryTransformations.jl/dev/examples/) — Physics applications
+- [API Reference](https://volkerkarle.github.io/UnitaryTransformations.jl/dev/api/) — Function documentation
 
 ## Requirements
 
-- Julia 1.10+
-- [QuantumAlgebra.jl](https://github.com/jfeist/QuantumAlgebra.jl) (with SU(N) support)
+- Julia 1.12+
+- [QuantumAlgebra.jl](https://github.com/jfeist/QuantumAlgebra.jl)
 - [Symbolics.jl](https://github.com/JuliaSymbolics/Symbolics.jl)
 
 ## License
@@ -231,10 +106,4 @@ MIT
 
 ## Contributing
 
-Contributions are welcome! Particularly for:
-- New transformation types (Lang-Firsov, Bogoliubov, Holstein-Primakoff)
-- Additional physics examples
-- Performance improvements
-- Documentation enhancements
-
-Please open an issue to discuss before submitting a PR.
+Contributions welcome! See the [documentation](https://volkerkarle.github.io/UnitaryTransformations.jl/dev/) for details.
