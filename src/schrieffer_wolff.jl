@@ -143,7 +143,8 @@ function schrieffer_wolff(
         # H_eff = H + [S,H] + (1/2)[S,[S,H]] + (1/6)[S,[S,[S,H]]] + ...
         # with S = S₁ + S₂ + ... + Sₙ₋₁ (Sₙ not yet determined)
 
-        order_n_terms = _collect_bch_terms_at_order(S, V_od, n, H0, V, P; parallel = parallel)
+        order_n_terms =
+            _collect_bch_terms_at_order(S, V_od, n, H0, V, P; parallel = parallel)
         # Simplify incrementally to prevent expression explosion
         # Use expand-only simplification which is fast but effective
         order_n_terms = _simplify_expand_only(order_n_terms)
