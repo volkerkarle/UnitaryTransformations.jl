@@ -178,3 +178,49 @@ println("For N = 10 atoms:")
 println("  - Collective Lamb shift: 10 × 10 MHz = 100 MHz")
 println("  - AC Stark shift per atom: 20 MHz")
 println("  - Dispersive coupling: 10 MHz × a†a × Jz")
+
+# Section 8: Vacuum projection showing exchange interaction
+println("\n8. VACUUM PROJECTION (n=0): EXCHANGE INTERACTION")
+println("-"^50)
+println("""
+When projected to the cavity vacuum (n=0), the a†a and a†...a terms vanish.
+For TWO atoms, we can see the cavity-mediated exchange interaction explicitly:
+""")
+
+# Compute with two explicit atoms
+@variables ω_c2 Δ2 g2
+H2 = ω_c2 * a'() * a() +
+     Δ2 / 2 * σz(1) + Δ2 / 2 * σz(2) +
+     g2 * (a'() * σm(1) + a() * σp(1)) +
+     g2 * (a'() * σm(2) + a() * σp(2))
+
+P2 = Subspace(a'() * a() => 0)
+result2 = schrieffer_wolff(H2, P2; order = 2, simplify_mode = :standard)
+
+println("H_eff (n=0 terms only):")
+for (term, coeff) in result2.H_eff.terms
+    term_str = string(term)
+    if !occursin("a†", term_str) && !occursin("a()", term_str)
+        coeff_simp = Symbolics.simplify(coeff)
+        println("  ", coeff_simp, " × ", term)
+    end
+end
+
+println("""
+
+This can be written as:
+
+  H_P(n=0) = -Δ + (Δ + χ)(σ⁺₁σ⁻₁ + σ⁺₂σ⁻₂) + χ(σ⁺₁σ⁻₂ + σ⁺₂σ⁻₁)
+
+where χ = g²/(Δ - ω_c) is the dispersive shift.
+
+The EXCHANGE TERM χ(σ⁺₁σ⁻₂ + σ⁺₂σ⁻₁) = χ(σₓ₁σₓ₂ + σᵧ₁σᵧ₂)/2 represents:
+  - Cavity-mediated spin-spin interaction (XY coupling)
+  - Virtual photon exchange between atoms
+  - Foundation for cavity-mediated quantum gates
+
+For N atoms, this generalizes to:
+  H_exchange = χ Σᵢⱼ (σ⁺ᵢσ⁻ⱼ + σ⁺ⱼσ⁻ᵢ) = χ (J₊J₋ + J₋J₊)/2
+
+where J₊ = Σᵢ σ⁺ᵢ and J₋ = Σᵢ σ⁻ᵢ are collective spin operators.
+""")

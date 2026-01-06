@@ -584,6 +584,40 @@ For ``N = 10`` atoms with ``\Delta = 1.0`` GHz, ``g = 0.1`` GHz:
 - Collective Lamb shift: ``10 \times 10`` MHz = 100 MHz
 - AC Stark shift per atom: 20 MHz per photon
 
+#### Vacuum Projection: Exchange Interaction
+
+When projected to the cavity vacuum (``n=0``), the photon-dependent terms vanish. For **two atoms**, the effective spin Hamiltonian becomes:
+
+```math
+H_P(n=0) = \text{const.} + (\Delta + \chi)(\sigma^+_1\sigma^-_1 + \sigma^+_2\sigma^-_2) + \chi(\sigma^+_1\sigma^-_2 + \sigma^+_2\sigma^-_1)
+```
+
+The **exchange term** ``\chi(\sigma^+_1\sigma^-_2 + \sigma^+_2\sigma^-_1)`` represents cavity-mediated spin-spin coupling:
+
+```julia
+# Two explicit atoms (not using sum index)
+H = ω_c * a'()*a() + 
+    Δ/2 * σz(1) + Δ/2 * σz(2) + 
+    g * (a'()*σm(1) + a()*σp(1)) +
+    g * (a'()*σm(2) + a()*σp(2))
+
+P = Subspace(a'()*a() => 0)
+result = schrieffer_wolff(H, P; order=2)
+
+# Vacuum terms include exchange: χ(σ⁺₁σ⁻₂ + σ⁺₂σ⁻₁)
+```
+
+For ``N`` atoms, this generalizes to the collective exchange Hamiltonian:
+
+```math
+H_{\text{exchange}} = \chi \sum_{i \neq j} \sigma^+_i \sigma^-_j = \chi (J_+ J_- + J_- J_+)/2 - \chi N
+```
+
+where ``J_\pm = \sum_i \sigma^\pm_i`` are collective spin ladder operators. This is the foundation for:
+- Cavity-mediated quantum gates
+- Dicke superradiance
+- Spin squeezing via one-axis twisting
+
 ---
 
 ### Two-Level System with Transverse Field
