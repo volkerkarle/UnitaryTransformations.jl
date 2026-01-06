@@ -100,14 +100,14 @@ println("H_off-diagonal = ", H_od)
 println("\n4. SCHRIEFFER-WOLFF TRANSFORMATION")
 println("-"^50)
 
-result = schrieffer_wolff(H, P; order = 2)
+result = schrieffer_wolff(H, P; order = 2, simplify_mode = :standard)
 
 println("Generator:")
-S_simplified = simplify_coefficients(result.S)
+S_simplified = simplify_coefficients(result.S; mode = :standard)
 println("  S = ", S_simplified)
 
 println("\nEffective Hamiltonian (order 2):")
-H_eff = simplify_coefficients(result.H_eff)
+H_eff = simplify_coefficients(result.H_eff; mode = :standard)
 println("  H_eff = ", H_eff)
 
 # Verify the first-order generator equation

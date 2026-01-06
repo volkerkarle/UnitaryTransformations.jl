@@ -77,7 +77,7 @@ println("H_off-diagonal = ", H_od)
 println("\n4. SCHRIEFFER-WOLFF TRANSFORMATION (order 4)")
 println("-"^40)
 
-result = schrieffer_wolff(H_int, P; order = 4)
+result = schrieffer_wolff(H_int, P; order = 4, simplify_mode = :standard)
 
 println("Generator S = ", result.S)
 println("\nEffective Hamiltonian H_eff = ", result.H_eff)

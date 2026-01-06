@@ -80,13 +80,13 @@ println("\n4. SCHRIEFFER-WOLFF TRANSFORMATION (order 4)")
 println("-"^40)
 println("Transforming the full Rabi model to 4th order...")
 
-result_full = schrieffer_wolff(H_full, P; order = 4)
+result_full = schrieffer_wolff(H_full, P; order = 4, simplify_mode = :standard)
 
 println("Generator S = ", result_full.S)
 
 # Also do JC for comparison - can go to higher order since it's simpler
 println("\nFor comparison, transforming JC model to 4th order...")
-result_JC = schrieffer_wolff(H_JC, P; order = 4)
+result_JC = schrieffer_wolff(H_JC, P; order = 4, simplify_mode = :standard)
 
 # Analyze effective Hamiltonians
 println("\n5. EFFECTIVE HAMILTONIANS")

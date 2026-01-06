@@ -70,7 +70,7 @@ println("H_off-diagonal = ", H_od)
 println("\n4. SCHRIEFFER-WOLFF TRANSFORMATION (order 4)")
 println("-"^40)
 
-result = schrieffer_wolff(H, P; order = 4)
+result = schrieffer_wolff(H, P; order = 4, simplify_mode = :standard)
 
 println("Generator S = ", result.S)
 println("\nEffective Hamiltonian H_eff = ", result.H_eff)
@@ -79,7 +79,7 @@ println("\nEffective Hamiltonian H_eff = ", result.H_eff)
 println("\n5. SIMPLIFIED H_eff")
 println("-"^40)
 
-H_eff_simp = simplify_coefficients(result.H_eff)
+H_eff_simp = simplify_coefficients(result.H_eff; mode = :standard)
 println("H_eff (simplified) = ", H_eff_simp)
 
 terms = collect_terms(result.H_eff)
