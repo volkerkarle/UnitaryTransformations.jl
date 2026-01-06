@@ -352,3 +352,125 @@ function decompose(H::QuExpr, P::Subspace)
     H_od = off_diagonal_part(H, P)
     return (H_d, H_od)
 end
+
+# =============================================================================
+# SymSum/SymExpr Extensions for Multi-Atom/Multi-Site Systems
+# =============================================================================
+
+import ..UnitaryTransformations: SymSum, SymProd, SymExpr, AbstractSymbolicAggregate
+
+"""
+    decompose(s::SymSum, P::Subspace)
+
+Decompose a symbolic sum into diagonal and off-diagonal parts.
+The decomposition is applied to the inner expression of the sum.
+
+Returns (SymSum_d, SymSum_od) where both are SymSum with the same index.
+"""
+function decompose(s::SymSum, P::Subspace)
+    inner_d, inner_od = decompose(s.expr, P)
+    SymSum_d = SymSum(inner_d, s.index, s.excluded)
+    SymSum_od = SymSum(inner_od, s.index, s.excluded)
+    return (SymSum_d, SymSum_od)
+end
+
+"""
+    decompose(s::SymProd, P::Subspace)
+
+Decompose a symbolic product. Products are generally treated as off-diagonal
+unless explicitly simplified.
+"""
+function decompose(s::SymProd, P::Subspace)
+    inner_d, inner_od = decompose(s.expr, P)
+    SymProd_d = SymProd(inner_d, s.index, s.excluded)
+    SymProd_od = SymProd(inner_od, s.index, s.excluded)
+    return (SymProd_d, SymProd_od)
+end
+
+"""
+    decompose(e::SymExpr, P::Subspace)
+
+Decompose a symbolic expression containing sums, products, and regular terms.
+Returns (SymExpr_d, SymExpr_od).
+"""
+function decompose(e::SymExpr, P::Subspace)
+    # Decompose the scalar (QuExpr) part
+    scalar_d, scalar_od = decompose(e.scalar, P)
+    
+    # Decompose each symbolic aggregate term
+    terms_d = Tuple{Number, AbstractSymbolicAggregate}[]
+    terms_od = Tuple{Number, AbstractSymbolicAggregate}[]
+    
+    for (coeff, agg) in e.terms
+        agg_d, agg_od = decompose(agg, P)
+        push!(terms_d, (coeff, agg_d))
+        push!(terms_od, (coeff, agg_od))
+    end
+    
+    SymExpr_d = SymExpr(terms_d, scalar_d)
+    SymExpr_od = SymExpr(terms_od, scalar_od)
+    
+    return (SymExpr_d, SymExpr_od)
+end
+
+"""
+    diagonal_part(s::SymSum, P::Subspace)
+
+Extract the diagonal part of a symbolic sum.
+"""
+function diagonal_part(s::SymSum, P::Subspace)
+    inner_d = diagonal_part(s.expr, P)
+    return SymSum(inner_d, s.index, s.excluded)
+end
+
+"""
+    off_diagonal_part(s::SymSum, P::Subspace)
+
+Extract the off-diagonal part of a symbolic sum.
+"""
+function off_diagonal_part(s::SymSum, P::Subspace)
+    inner_od = off_diagonal_part(s.expr, P)
+    return SymSum(inner_od, s.index, s.excluded)
+end
+
+"""
+    diagonal_part(e::SymExpr, P::Subspace)
+
+Extract the diagonal part of a symbolic expression.
+"""
+function diagonal_part(e::SymExpr, P::Subspace)
+    d, _ = decompose(e, P)
+    return d
+end
+
+"""
+    off_diagonal_part(e::SymExpr, P::Subspace)
+
+Extract the off-diagonal part of a symbolic expression.
+"""
+function off_diagonal_part(e::SymExpr, P::Subspace)
+    _, od = decompose(e, P)
+    return od
+end
+
+"""
+    is_diagonal(s::SymSum, P::Subspace)
+
+Check if a symbolic sum is purely diagonal.
+"""
+function is_diagonal(s::SymSum, P::Subspace)
+    return is_diagonal(s.expr, P)
+end
+
+"""
+    is_diagonal(e::SymExpr, P::Subspace)
+
+Check if a symbolic expression is purely diagonal.
+"""
+function is_diagonal(e::SymExpr, P::Subspace)
+    is_diagonal(e.scalar, P) || return false
+    for (_, agg) in e.terms
+        is_diagonal(agg, P) || return false
+    end
+    return true
+end

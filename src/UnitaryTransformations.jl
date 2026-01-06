@@ -30,7 +30,14 @@ using QuantumAlgebra:
     BosonDestroy_,
     FermionCreate_,
     FermionDestroy_,
-    QuOpName
+    QuOpName,
+    # Symbolic sum types for multi-atom/multi-site systems
+    SymSum,
+    SymProd,
+    SymExpr,
+    AbstractSymbolicAggregate,
+    expand_symbolic,
+    sumindex
 
 using Symbolics: Num, unwrap
 

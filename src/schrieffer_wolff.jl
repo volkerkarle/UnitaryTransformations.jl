@@ -629,3 +629,107 @@ function substitute_operator_eigenvalue(H::QuExpr, op::QuExpr, eigenvalue::Numbe
 
     return normal_form(result)
 end
+
+# =============================================================================
+# SymSum/SymExpr Extension for Multi-Atom/Multi-Site Systems
+# =============================================================================
+
+import ..UnitaryTransformations: SymSum, SymProd, SymExpr, AbstractSymbolicAggregate
+
+"""
+    schrieffer_wolff(H::SymExpr, P::Subspace; order::Int=2, ...)
+
+Perform the Schrieffer-Wolff transformation on a Hamiltonian expressed with
+symbolic sums (SymExpr).
+
+This extends the standard SW transformation to handle Hamiltonians like the
+Tavis-Cummings model:
+
+    H = ω_c a†a + Σᵢ (Δ/2)σz(i) + Σᵢ g(a†σ⁻(i) + aσ⁺(i))
+
+The key capability is correct handling of:
+- Same-site contributions: Σᵢ [Aᵢ, Bᵢ]
+- Cross-site contributions: Σᵢ Σⱼ≠ᵢ [Aᵢ, Bⱼ] (exchange interactions)
+
+# Arguments
+Same as the `schrieffer_wolff(H::QuExpr, ...)` method.
+
+# Returns
+- Named tuple `(H_eff, S, H_P)` where H_eff and S may be SymExpr types.
+
+# Example
+```julia
+using QuantumAlgebra, UnitaryTransformations, Symbolics
+import QuantumAlgebra: sumindex, SymSum, SymExpr
+
+@variables ω_c Δ g
+
+i = sumindex(1)
+H = SymExpr(ω_c * a'()*a()) + 
+    SymSum(Δ/2 * σz(i), i) + 
+    SymSum(g * (a'()*σm(i) + a()*σp(i)), i)
+
+P = Subspace(a'()*a() => 0)  # Zero photon sector
+result = schrieffer_wolff(H, P; order=2)
+```
+
+# Notes
+- Currently only supports order=2 for SymExpr inputs
+- The effective Hamiltonian includes both same-site and cross-site terms
+- For higher orders, expand the SymSum to explicit indices first
+"""
+function schrieffer_wolff(
+    H::SymExpr,
+    P::Subspace;
+    order::Int = 2,
+    simplify_generator::Bool = false,
+    simplify_mode::Symbol = :fast,
+    diagonal_only::Bool = false,
+    parallel::Bool = false,
+)
+    order >= 2 || throw(ArgumentError("order must be at least 2, got $order"))
+    order == 2 || @warn "SymExpr input: only order=2 is fully supported. Higher orders may not include all cross-site contributions."
+    
+    # Decompose H = H₀ (diagonal) + V (off-diagonal)
+    H0, V = decompose(H, P)
+    
+    # For order 2, we use the simplified algorithm:
+    # H_eff = H₀ + (1/2)[S₁, V]
+    # where [S₁, H₀] = -V
+    
+    # Solve for the first-order generator
+    S1 = solve_for_generator(H0, V, P)
+    
+    # Compute the second-order correction: (1/2)[S₁, V]
+    comm_S1_V = comm(S1, V)
+    
+    # Extract the diagonal part of the second-order correction
+    second_order_diag, _ = decompose(comm_S1_V, P)
+    
+    # The effective Hamiltonian is H₀ + (1/2)[S₁, V]_diagonal
+    H_eff = H0 + (1//2) * second_order_diag
+    
+    # For order > 2, we would need additional iterations
+    # Currently not fully implemented for SymExpr
+    
+    # Project to subspace P - for SymExpr this is more complex
+    # For now, we return the full H_eff without projection
+    # TODO: Implement project_to_subspace for SymExpr
+    H_P = H_eff  # Placeholder - full projection not implemented
+    
+    return (H_eff = H_eff, S = S1, H_P = H_P)
+end
+
+"""
+    schrieffer_wolff(H::SymSum, P::Subspace; order::Int=2, ...)
+
+Convenience method: wrap a single SymSum in a SymExpr and call the main method.
+"""
+function schrieffer_wolff(
+    H::SymSum,
+    P::Subspace;
+    order::Int = 2,
+    kwargs...
+)
+    return schrieffer_wolff(SymExpr(H), P; order=order, kwargs...)
+end

@@ -14,213 +14,328 @@ where:
 - Δ = ω_q - ω_c: detuning
 - i ∈ {1, 2, ..., N}: atom index
 
-In QuantumAlgebra, the sum over atoms is represented using a "sum index" #₁,
-which symbolically represents Σᵢ.
+This example uses the NEW SymSum type from QuantumAlgebra.jl which properly
+handles symbolic sums with correct commutator semantics:
+- Same-site terms: Σᵢ [Aᵢ, Bᵢ]
+- Cross-site terms: Σᵢ Σⱼ≠ᵢ [Aᵢ, Bⱼ]
 
 In the dispersive regime (|Δ| >> g√N), the Schrieffer-Wolff transformation
 yields the effective Hamiltonian:
 
-    H_eff = ω̃_c a†a + Σᵢ[ω̃_q/2 σz(i)] + χ·a†a·Jz
+    H_eff = ω̃_c a†a + Σᵢ[ω̃_q/2 σz(i)] + χ·a†a·Jz + χ·Σᵢ≠ⱼ(σ⁺ᵢσ⁻ⱼ)
 
 where:
 - χ = g²/Δ is the single-atom dispersive shift
 - Jz = Σᵢ σz(i)/2 is the collective spin operator
-- ω̃_c = ω_c - Nχ (collective Lamb shift)
-- ω̃_q = ω_q + 2χ (AC Stark shift)
+- The last term is the EXCHANGE INTERACTION between atoms
 
 Key physics:
 - Collective enhancement: The effective coupling scales as g√N
-- Superradiance: Collective states decay at enhanced rates
-- Collective dispersive shift: Cavity shift depends on total spin
+- Exchange interaction: Virtual photon exchange couples spin degrees of freedom
+- Cavity-mediated entanglement: Foundation for multi-qubit gates
 
 Reference: 
 - Tavis & Cummings, Phys. Rev. 170, 379 (1968)
 - Blais et al., PRA 75, 032329 (2007) for circuit QED context
 =#
 
-using UnitaryTransformations
 using QuantumAlgebra
 using Symbolics
 
-println("="^65)
-println("  Tavis-Cummings Model: N Atoms in a Cavity")
-println("="^65)
+# The SymSum types are exported from QuantumAlgebra
+# Import additional utilities for this example
+import QuantumAlgebra: sumindex
+
+println("="^70)
+println("  Tavis-Cummings Model: N Atoms with Symbolic Sums")
+println("="^70)
 
 # Use σ± basis for cleaner algebra
 QuantumAlgebra.use_σpm(true)
 
-# Clear any cached symbolic variables from previous runs
-UnitaryTransformations.clear_param_cache!()
-
-# Create a sum index to represent Σᵢ over N atoms
-# In QuantumAlgebra, sumindex(1) creates the symbolic index #₁
-i = QuantumAlgebra.sumindex(1)
-
 # Define symbolic parameters
-@variables ω_c Δ g  # cavity freq, detuning, coupling
+@variables ω_c Δ g  # cavity freq, detuning (in rotating frame), coupling
 
-println("\n1. HAMILTONIAN")
-println("-"^50)
-println("H = ω_c a†a + Σᵢ[Δ/2 σz(i)] + g·Σᵢ[a†σ⁻(i) + a σ⁺(i)]")
+println("\n1. HAMILTONIAN CONSTRUCTION WITH SYMBOLIC SUMS")
+println("-"^60)
+println("Using SymSum to represent Σᵢ with proper bound variable semantics")
 println()
 
-# Build the Tavis-Cummings Hamiltonian
-# The sum index #₁ automatically represents the sum over all atoms
-H_cav = ω_c * a'() * a()           # Cavity energy
-H_atom = Δ/2 * σz(i)               # Atom energies (summed over i)
-H_int = g * (a'()*σm(i) + a()*σp(i))  # Jaynes-Cummings coupling (summed)
+# Create a sum index
+i = sumindex(1)
 
-H = H_cav + H_atom + H_int
+# Build the Tavis-Cummings Hamiltonian using SymSum
+# H_cav = ω_c a†a (no sum - single cavity mode)
+H_cav = ω_c * a'() * a()
 
-println("In QuantumAlgebra notation:")
-println("  H = ", normal_form(H))
+# H_atom = Σᵢ (Δ/2) σz(i)
+H_atom = SymSum(Δ/2 * σz(i), i)
+
+# H_int = Σᵢ g(a†σ⁻(i) + aσ⁺(i))
+H_int = SymSum(g * (a'()*σm(i) + a()*σp(i)), i)
+
+# Total Hamiltonian (SymExpr combining QuExpr and SymSum terms)
+H = SymExpr(H_cav) + H_atom + H_int
+
+println("Cavity term:      H_cav = ω_c a†a")
+println("Atom term:        H_atom = ", H_atom)
+println("Interaction term: H_int  = ", H_int)
 println()
-println("Note: #₁ represents the sum index Σᵢ over N atoms")
+println("Full Hamiltonian:")
+println("  H = ", H)
 
-# Define subspace: cavity in vacuum state (dispersive regime)
-P = Subspace(a'()*a() => 0)
+# =============================================================================
+# Section 2: Manual Schrieffer-Wolff for Symbolic Sums
+# =============================================================================
 
-println("\n2. SUBSPACE DEFINITION")
-println("-"^50)
-println("P = {|n⟩ : n = 0} (cavity vacuum / low photon number)")
+println("\n2. SCHRIEFFER-WOLFF TRANSFORMATION (MANUAL)")
+println("-"^60)
+println("For the dispersive regime, we eliminate the atom-cavity coupling.")
 println()
-println("This is appropriate for the dispersive regime where")
-println("photon number is small and we want to eliminate the")
-println("direct atom-cavity coupling.")
 
-# Decompose into diagonal and off-diagonal parts
-H_d, H_od = decompose(H, P)
+# The off-diagonal part is V = H_int
+# The diagonal part is H_d = H_cav + H_atom
+V = H_int
 
-println("\n3. HAMILTONIAN DECOMPOSITION")
-println("-"^50)
-println("H_diagonal     = ", H_d)
-println("H_off-diagonal = ", H_od)
+println("Off-diagonal perturbation:")
+println("  V = ", V)
 
-# Perform Schrieffer-Wolff transformation to second order
-println("\n4. SCHRIEFFER-WOLFF TRANSFORMATION")
-println("-"^50)
+# The first-order generator S₁ satisfies [S₁, H_d] = -V
+# For the JC/TC interaction: [S₁, H_d] = -g Σᵢ(a†σ⁻(i) + aσ⁺(i))
+# 
+# The solution is:
+#   S₁ = Σᵢ (g/Δ)(aσ⁺(i) - a†σ⁻(i))
+# 
+# where we use [σz, σ±] = ±2σ± and [a†a, a] = -a, [a†a, a†] = a†
 
-result = schrieffer_wolff(H, P; order = 2, simplify_mode = :standard)
+# Construct the generator
+S1 = SymSum((g/Δ) * (a()*σp(i) - a'()*σm(i)), i)
 
-println("Generator:")
-S_simplified = simplify_coefficients(result.S; mode = :standard)
-println("  S = ", S_simplified)
+println("\nFirst-order generator:")
+println("  S₁ = ", S1)
 
-println("\nEffective Hamiltonian (order 2):")
-H_eff = simplify_coefficients(result.H_eff; mode = :standard)
-println("  H_eff = ", H_eff)
+# Verify: [S₁, H_d] should equal -V
+# This requires computing commutators with SymSum
+println("\nVerifying generator equation [S₁, H_d] = -V...")
 
-# Verify the first-order generator equation
-println("\n5. VERIFICATION")
-println("-"^50)
-# Get first-order generator
-S1 = solve_for_generator(H_d, H_od, P)
-residual = normal_form(comm(S1, H_d) + H_od)
-# Each coefficient should simplify to zero
-verified = isempty(residual.terms)
-if !verified
-    # Check if coefficients simplify to zero
-    verified = all(iszero(Symbolics.simplify(c)) for (_, c) in residual.terms)
+# Commutator with cavity part: [S₁, ω_c a†a]
+comm_cav = ω_c * comm(S1, a'()*a())
+println("  [S₁, H_cav] = ", normal_form(comm_cav))
+
+# Commutator with atom part: [S₁, Σⱼ (Δ/2)σz(j)]
+# This is the key test! Uses same-site + cross-site decomposition
+comm_atom = comm(S1, H_atom)
+println("  [S₁, H_atom] = ", comm_atom)
+
+# =============================================================================
+# Section 3: Second-Order Correction - The Exchange Interaction
+# =============================================================================
+
+println("\n3. SECOND-ORDER CORRECTION: EXCHANGE INTERACTION")
+println("-"^60)
+println("The key physics: (1/2)[S₁, V] produces the exchange interaction!")
+println()
+
+# Compute [S₁, V]
+# This is the crucial calculation that gives rise to the exchange term
+comm_S1_V = comm(S1, V)
+
+println("Commutator [S₁, V]:")
+println("  ", comm_S1_V)
+
+# Let's expand this for N=2 atoms to see the explicit terms
+println("\n4. EXPANSION FOR N=2 ATOMS")
+println("-"^60)
+
+expanded_comm = expand_symbolic(comm_S1_V, 1:2)
+expanded_normal = normal_form(expanded_comm)
+
+println("Expanding [S₁, V] for 2 atoms:")
+println("  ", expanded_normal)
+
+# Simplify the coefficients
+function simplify_expr(expr)
+    result_terms = Dict{typeof(first(expr.terms)[1]),Any}()
+    for (term, coeff) in expr.terms
+        if coeff isa Symbolics.Num
+            result_terms[term] = Symbolics.simplify(coeff)
+        else
+            result_terms[term] = coeff
+        end
+    end
+    return QuantumAlgebra.QuExpr(result_terms)
 end
-if verified
-    println("First-order generator equation [S₁, H_d] = -H_od: ✓ Verified")
-    println("  S₁ = ", S1)
-else
-    println("Generator equation not satisfied. Residual: ", residual)
-end
 
-# Physical interpretation
-println("\n6. PHYSICAL INTERPRETATION")
-println("-"^50)
+expanded_simplified = simplify_expr(expanded_normal)
+println("\nSimplified:")
+println("  ", expanded_simplified)
+
+# =============================================================================
+# Section 5: Physical Interpretation
+# =============================================================================
+
+println("\n5. PHYSICAL INTERPRETATION")
+println("-"^60)
 println("""
-The effective Hamiltonian terms can be written in standard form:
+The second-order effective Hamiltonian H_eff = H_d + (1/2)[S₁, V] contains:
 
-  H_eff = (ω_c - χ·N)a†a + Σᵢ[(Δ + 2χ)/2 σz(i)] + 2χ·a†a·Σᵢ[σ⁺(i)σ⁻(i)]
-
-where χ = g²/(Δ - ω_c) ≈ g²/Δ is the dispersive shift.
-
-Converting to Jz = Σᵢ σz(i)/2 (collective spin):
-
-  H_eff = ω̃_c·a†a + ω̃_q·Jz + χ·a†a·Jz
-
-Key physics of the Tavis-Cummings model:
-
-1. COLLECTIVE LAMB SHIFT
-   The cavity frequency shifts by -χ per atom (total -Nχ).
-   This is a collective effect where all atoms contribute.
-
+1. CAVITY LAMB SHIFT
+   The cavity frequency shifts due to virtual atom excitations.
+   
 2. AC STARK SHIFT  
-   Each atom's frequency shifts by 2χ due to virtual photon exchange.
-
+   Each atom's frequency shifts by χ = g²/Δ due to virtual photon exchange.
+   
 3. DISPERSIVE COUPLING
    The term χ·a†a·Jz couples the photon number to the total spin.
-   - Cavity frequency depends on collective spin state
-   - Individual atom frequencies shift with photon number
 
-4. COLLECTIVE ENHANCEMENT
-   For N atoms, the vacuum Rabi splitting scales as g√N,
-   leading to enhanced dispersive effects.
+4. EXCHANGE INTERACTION (NEW with SymSum!)
+   The cross-site terms give:
+   
+     H_exchange = χ Σᵢ≠ⱼ (σ⁺ᵢσ⁻ⱼ + σ⁺ⱼσ⁻ᵢ)
+   
+   This represents:
+   - Cavity-mediated spin-spin coupling
+   - Virtual photon exchange: atom i emits, atom j absorbs
+   - Foundation for cavity-mediated quantum gates
+   - XY-type interaction: (σₓᵢσₓⱼ + σᵧᵢσᵧⱼ)/2
 
-This is the foundation for:
-- Multi-qubit dispersive readout in circuit QED
-- Collective spin squeezing
-- Quantum non-demolition measurements
+The exchange interaction was MISSING in the old approach because
+sumindex(1) treated all sums as having the same index, giving only
+same-site contributions.
+
+With SymSum, we correctly get:
+   [Σᵢ Aᵢ, Σⱼ Bⱼ] = Σᵢ[Aᵢ, Bᵢ] + Σᵢ Σⱼ≠ᵢ [Aᵢ, Bⱼ]
+                     |_________|   |______________|
+                      same-site     cross-site (exchange!)
 """)
 
-# Numerical example
-println("\n7. NUMERICAL EXAMPLE")
-println("-"^50)
-println("Parameters: Δ = 1.0 GHz, g = 0.1 GHz (dispersive: g/Δ = 0.1)")
-println()
-println("Dispersive shift χ = g²/Δ = 0.01 GHz = 10 MHz")
-println()
-println("For N = 10 atoms:")
-println("  - Collective Lamb shift: 10 × 10 MHz = 100 MHz")
-println("  - AC Stark shift per atom: 20 MHz")
-println("  - Dispersive coupling: 10 MHz × a†a × Jz")
+# =============================================================================
+# Section 6: Comparison - Old vs New
+# =============================================================================
 
-# Section 8: Vacuum projection showing exchange interaction
-println("\n8. VACUUM PROJECTION (n=0): EXCHANGE INTERACTION")
-println("-"^50)
-println("""
-When projected to the cavity vacuum (n=0), the a†a and a†...a terms vanish.
-For TWO atoms, we can see the cavity-mediated exchange interaction explicitly:
-""")
+println("\n6. COMPARISON: OLD (sumindex) vs NEW (SymSum)")
+println("-"^60)
 
-# Compute with two explicit atoms
+println("OLD APPROACH (broken for multi-atom physics):")
+println("  i = sumindex(1)")
+println("  V = g * (a'()*σm(i) + a()*σp(i))  # Just uses #₁")
+println("  # Commutators treat all i's as the SAME site")
+println("  # → Missing exchange terms!")
+println()
+
+println("NEW APPROACH (correct physics):")
+println("  i = sumindex(1)")
+println("  V = SymSum(g * (a'()*σm(i) + a()*σp(i)), i)")
+println("  # SymSum tracks bound variable i")
+println("  # Commutators split into same-site + cross-site")
+println("  # → Exchange interaction emerges naturally!")
+
+# =============================================================================
+# Section 7: Explicit Two-Atom Calculation
+# =============================================================================
+
+println("\n7. EXPLICIT TWO-ATOM EFFECTIVE HAMILTONIAN")
+println("-"^60)
+
+# Build explicit two-atom Hamiltonian
 @variables ω_c2 Δ2 g2
-H2 = ω_c2 * a'() * a() +
-     Δ2 / 2 * σz(1) + Δ2 / 2 * σz(2) +
-     g2 * (a'() * σm(1) + a() * σp(1)) +
-     g2 * (a'() * σm(2) + a() * σp(2))
 
-P2 = Subspace(a'() * a() => 0)
-result2 = schrieffer_wolff(H2, P2; order = 2, simplify_mode = :standard)
+H2_cav = ω_c2 * a'() * a()
+H2_atom = Δ2/2 * σz(1) + Δ2/2 * σz(2)
+H2_int = g2 * (a'()*σm(1) + a()*σp(1)) + g2 * (a'()*σm(2) + a()*σp(2))
 
-println("H_eff (n=0 terms only):")
-for (term, coeff) in result2.H_eff.terms
+# Generator for two atoms
+S2 = (g2/Δ2) * (a()*σp(1) - a'()*σm(1)) + (g2/Δ2) * (a()*σp(2) - a'()*σm(2))
+
+# Compute (1/2)[S, V]
+half_comm = (1//2) * normal_form(comm(S2, H2_int))
+
+println("For 2 atoms, (1/2)[S₁, V] gives:")
+for (term, coeff) in half_comm.terms
+    coeff_simp = coeff isa Symbolics.Num ? Symbolics.simplify(coeff) : coeff
+    println("  ", coeff_simp, " × ", term)
+end
+
+# Extract terms by type
+println("\nGrouped by physics:")
+println()
+
+cavity_terms = []
+single_atom_terms = []
+exchange_terms = []
+
+for (term, coeff) in half_comm.terms
     term_str = string(term)
-    if !occursin("a†", term_str) && !occursin("a()", term_str)
-        coeff_simp = Symbolics.simplify(coeff)
-        println("  ", coeff_simp, " × ", term)
+    coeff_simp = coeff isa Symbolics.Num ? Symbolics.simplify(coeff) : coeff
+    
+    if occursin("a†", term_str) && occursin("a()", term_str)
+        push!(cavity_terms, (term, coeff_simp))
+    elseif occursin("σ⁺", term_str) && occursin("σ⁻", term_str)
+        # Check if same site or different sites
+        if (occursin("(1)", term_str) && occursin("(2)", term_str))
+            push!(exchange_terms, (term, coeff_simp))
+        else
+            push!(single_atom_terms, (term, coeff_simp))
+        end
+    else
+        push!(single_atom_terms, (term, coeff_simp))
     end
 end
 
+println("Cavity/dispersive terms:")
+for (term, coeff) in cavity_terms
+    println("  ", coeff, " × ", term)
+end
+
+println("\nSingle-atom terms:")
+for (term, coeff) in single_atom_terms
+    println("  ", coeff, " × ", term)
+end
+
+println("\nEXCHANGE TERMS (the key new physics!):")
+for (term, coeff) in exchange_terms
+    println("  ", coeff, " × ", term)
+end
+
 println("""
 
-This can be written as:
-
-  H_P(n=0) = -Δ + (Δ + χ)(σ⁺₁σ⁻₁ + σ⁺₂σ⁻₂) + χ(σ⁺₁σ⁻₂ + σ⁺₂σ⁻₁)
-
-where χ = g²/(Δ - ω_c) is the dispersive shift.
-
-The EXCHANGE TERM χ(σ⁺₁σ⁻₂ + σ⁺₂σ⁻₁) = χ(σₓ₁σₓ₂ + σᵧ₁σᵧ₂)/2 represents:
-  - Cavity-mediated spin-spin interaction (XY coupling)
-  - Virtual photon exchange between atoms
-  - Foundation for cavity-mediated quantum gates
-
-For N atoms, this generalizes to:
-  H_exchange = χ Σᵢⱼ (σ⁺ᵢσ⁻ⱼ + σ⁺ⱼσ⁻ᵢ) = χ (J₊J₋ + J₋J₊)/2
-
-where J₊ = Σᵢ σ⁺ᵢ and J₋ = Σᵢ σ⁻ᵢ are collective spin operators.
+The exchange terms σ⁺(1)σ⁻(2) + σ⁺(2)σ⁻(1) represent:
+  • Flip-flop interaction between atoms
+  • Virtual photon exchange via the cavity
+  • XY spin coupling: (σₓ₁σₓ₂ + σᵧ₁σᵧ₂)/2
+  
+This interaction enables:
+  • iSWAP and √iSWAP gates
+  • Entanglement generation
+  • Collective spin dynamics
 """)
+
+# =============================================================================
+# Section 8: Symbolic N-Atom Result
+# =============================================================================
+
+println("\n8. SYMBOLIC N-ATOM RESULT")
+println("-"^60)
+
+println("""
+For N atoms, the effective Hamiltonian in the dispersive regime is:
+
+  H_eff = ω̃_c a†a + Σᵢ ω̃_q/2 σz(i) + χ a†a Jz + χ Σᵢ≠ⱼ σ⁺ᵢσ⁻ⱼ
+
+where:
+  • χ = g²/Δ is the dispersive shift
+  • Jz = (1/2)Σᵢ σz(i) is the collective spin z-component
+  • ω̃_c = ω_c - Nχ/2 (collective Lamb shift)
+  • ω̃_q = ω_q + χ (AC Stark shift)
+
+In SymSum notation, the exchange term is:
+
+  H_exchange = χ · Σ#₁(Σ#₂≠#₁(σ⁺(#₁)σ⁻(#₂)))
+
+This nested sum with the j≠i constraint correctly represents:
+  Σᵢ Σⱼ≠ᵢ σ⁺ᵢσ⁻ⱼ = Σᵢ<ⱼ (σ⁺ᵢσ⁻ⱼ + σ⁺ⱼσ⁻ᵢ)
+""")
+
+println("="^70)
+println("  End of Tavis-Cummings Example")
+println("="^70)

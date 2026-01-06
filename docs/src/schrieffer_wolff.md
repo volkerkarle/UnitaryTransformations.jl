@@ -524,42 +524,53 @@ H_num = substitute_values(result.H_P, Dict(:g => 0.1, :Δ => 1.0))
 The **Tavis-Cummings model** generalizes Jaynes-Cummings to ``N`` identical two-level atoms coupled to a single cavity mode:
 
 ```math
-H = \omega_c a^\dagger a + \sum_i \frac{\varepsilon_i}{2}\sigma_z^{(i)} + \sum_i g_i (a^\dagger\sigma^{(i)}_- + a\sigma^{(i)}_+)
+H = \omega_c a^\dagger a + \sum_i \frac{\Delta_i}{2}\sigma_z^{(i)} + \sum_i g_i (a^\dagger\sigma^{(i)}_- + a\sigma^{(i)}_+)
 ```
 
 This model describes multi-qubit circuit QED systems and collective atom-light interactions.
+
+#### Using Symbolic Sums (Recommended for N Atoms)
+
+For systems with an arbitrary number of atoms, use `SymSum` and `SymExpr` to represent the Hamiltonian symbolically:
 
 ```julia
 using UnitaryTransformations
 using QuantumAlgebra
 using Symbolics
+import QuantumAlgebra: sumindex, SymSum, SymExpr
 
 QuantumAlgebra.use_σpm(true)
 
-# Sum index represents Σᵢ over N atoms
-i = QuantumAlgebra.sumindex(1)
-
 @variables ω_c Δ g  # cavity freq, detuning, coupling
 
-# Tavis-Cummings Hamiltonian
-# The sum index #₁ represents the sum over all atoms
-H = ω_c * a'()*a() + Δ/2 * σz(i) + g * (a'()*σm(i) + a()*σp(i))
+# Create a sum index representing Σᵢ over all atoms
+i = sumindex(1)
+
+# Build Tavis-Cummings Hamiltonian with symbolic sums
+H = SymExpr(ω_c * a'()*a()) + 
+    SymSum(Δ/2 * σz(i), i) + 
+    SymSum(g * (a'()*σm(i) + a()*σp(i)), i)
 
 # Zero-photon subspace (dispersive regime)
 P = Subspace(a'()*a() => 0)
 
 result = schrieffer_wolff(H, P; order=2)
-show_result(result)
 ```
+
+**Key advantage**: When computing commutators like ``[\sum_i S_i, \sum_j V_j]``, the `SymSum` type correctly separates:
+- **Same-site terms** (``i = j``): ``\sum_i [S_i, V_i]``  
+- **Cross-site terms** (``i \neq j``): ``\sum_i \sum_{j \neq i} [S_i, V_j]``
+
+This produces the physically correct **exchange interactions** automatically!
 
 **Generator:**
 ```math
-S = \frac{g}{\Delta - \omega_c} a^{\dagger} \sigma^{(i)}_{-} + \frac{-g}{\Delta - \omega_c} \sigma^{(i)}_{+} a
+S = \sum_i \frac{g}{\Delta - \omega_c} a^{\dagger} \sigma^{(i)}_{-} + \frac{-g}{\Delta - \omega_c} \sigma^{(i)}_{+} a
 ```
 
 **Effective Hamiltonian:**
 ```math
-H_{\text{eff}} = \omega_c a^\dagger a + \frac{\Delta}{2}\sum_i \sigma_z^{(i)} + \chi \, a^\dagger a \sum_i \sigma_z^{(i)} + \text{const.}
+H_{\text{eff}} = \omega_c a^\dagger a + \sum_i\frac{\Delta}{2} \sigma_z^{(i)} + \chi \, a^\dagger a \sum_i \sigma_z^{(i)} + \chi \sum_{i \neq j} \sigma^+_i \sigma^-_j + \text{const.}
 ```
 
 where ``\chi = g^2/(\Delta - \omega_c)`` is the dispersive shift per atom.
@@ -571,6 +582,7 @@ The Tavis-Cummings effective Hamiltonian reveals collective effects:
 1. **Collective Lamb shift**: Cavity frequency shifts by ``-N\chi`` (``N`` atoms contribute)
 2. **AC Stark shift**: Each atom's frequency shifts by ``2\chi`` per photon
 3. **Dispersive coupling**: ``\chi \cdot a^\dagger a \cdot J_z`` where ``J_z = \sum_i \sigma_z^{(i)}/2``
+4. **Exchange interaction**: ``\chi \sum_{i \neq j} \sigma^+_i \sigma^-_j`` — cavity-mediated spin-spin coupling
 
 For ``N`` atoms, the vacuum Rabi splitting scales as ``g\sqrt{N}``, leading to enhanced dispersive effects. This is the foundation for:
 - Multi-qubit dispersive readout in circuit QED
@@ -584,15 +596,33 @@ For ``N = 10`` atoms with ``\Delta = 1.0`` GHz, ``g = 0.1`` GHz:
 - Collective Lamb shift: ``10 \times 10`` MHz = 100 MHz
 - AC Stark shift per atom: 20 MHz per photon
 
-#### Vacuum Projection: Exchange Interaction
+#### Exchange Interaction: The Cross-Site Term
 
-When projected to the cavity vacuum (``n=0``), the photon-dependent terms vanish. For **two atoms**, the effective spin Hamiltonian becomes:
+The exchange term ``\chi \sum_{i \neq j} \sigma^+_i \sigma^-_j`` arises from virtual photon exchange between atoms. For **two atoms**, expanding the result:
 
-```math
-H_P(n=0) = \text{const.} + (\Delta + \chi)(\sigma^+_1\sigma^-_1 + \sigma^+_2\sigma^-_2) + \chi(\sigma^+_1\sigma^-_2 + \sigma^+_2\sigma^-_1)
+```julia
+# Expand to N=2 atoms to see explicit exchange terms
+using QuantumAlgebra: expand_symsum
+
+H_eff_N2 = expand_symsum(result.H_eff, 2)  # Expand to 2 atoms
+
+# Result includes: χ(σ⁺₁σ⁻₂ + σ⁺₂σ⁻₁)
 ```
 
-The **exchange term** ``\chi(\sigma^+_1\sigma^-_2 + \sigma^+_2\sigma^-_1)`` represents cavity-mediated spin-spin coupling:
+The exchange term represents cavity-mediated spin-spin coupling. For ``N`` atoms, this generalizes to:
+
+```math
+H_{\text{exchange}} = \chi \sum_{i \neq j} \sigma^+_i \sigma^-_j = \chi (J_+ J_- + J_- J_+)/2 - \chi N
+```
+
+where ``J_\pm = \sum_i \sigma^\pm_i`` are collective spin ladder operators. This is the foundation for:
+- Cavity-mediated quantum gates
+- Dicke superradiance
+- Spin squeezing via one-axis twisting
+
+#### Alternative: Explicit Indices (for Small N)
+
+For small, fixed numbers of atoms (e.g., N=2), you can use explicit site indices:
 
 ```julia
 # Two explicit atoms (not using sum index)
@@ -604,19 +634,10 @@ H = ω_c * a'()*a() +
 P = Subspace(a'()*a() => 0)
 result = schrieffer_wolff(H, P; order=2)
 
-# Vacuum terms include exchange: χ(σ⁺₁σ⁻₂ + σ⁺₂σ⁻₁)
+# Directly contains: χ(σ⁺₁σ⁻₂ + σ⁺₂σ⁻₁)
 ```
 
-For ``N`` atoms, this generalizes to the collective exchange Hamiltonian:
-
-```math
-H_{\text{exchange}} = \chi \sum_{i \neq j} \sigma^+_i \sigma^-_j = \chi (J_+ J_- + J_- J_+)/2 - \chi N
-```
-
-where ``J_\pm = \sum_i \sigma^\pm_i`` are collective spin ladder operators. This is the foundation for:
-- Cavity-mediated quantum gates
-- Dicke superradiance
-- Spin squeezing via one-axis twisting
+This approach is simpler for small N but doesn't scale to arbitrary N like `SymSum`.
 
 ---
 

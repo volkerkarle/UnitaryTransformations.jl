@@ -52,6 +52,7 @@ The package works with quantum systems provided by [QuantumAlgebra.jl](https://g
 | **N-level atoms** | `nlevel_ops(N, :name)` | Multi-level atoms |
 | **SU(N) systems** | `su_generators(N, :name)` | 3-level Λ systems |
 | **Fermions** | `f(:name)`, `f'(:name)` | Electrons |
+| **Symbolic sums** | `SymSum(expr, i)`, `SymExpr` | Multi-atom systems (Tavis-Cummings) |
 
 ## Installation
 

@@ -574,5 +574,69 @@
         @test abs(ratio - 16.0) < 1e-6  # Should be exactly 16 for g⁴ scaling
     end
 
+    @testset "SymSum/SymExpr support for multi-atom systems" begin
+        # Import SymSum types
+        import QuantumAlgebra: sumindex, SymSum, SymExpr, expand_symbolic
+        
+        @variables ω_c tc_Δ tc_g
+        
+        # Create a sum index for the Tavis-Cummings model
+        i = sumindex(1)
+        
+        # Build Hamiltonian with symbolic sums
+        H_cav = ω_c * a'() * a()
+        H_atom = SymSum(tc_Δ/2 * σz(i), i)
+        H_int = SymSum(tc_g * (a'()*σm(i) + a()*σp(i)), i)
+        
+        H = SymExpr(H_cav) + H_atom + H_int
+        
+        # Define subspace: zero photon sector
+        P = Subspace(a'()*a() => 0)
+        
+        # Test decomposition with SymExpr
+        H_d, H_od = decompose(H, P)
+        
+        # The off-diagonal part should be the interaction term
+        @test H_od isa SymExpr
+        
+        # Test solve_for_generator with SymSum
+        S = solve_for_generator(H_d, H_od, P)
+        @test S isa SymExpr || S isa SymSum
+        
+        # Test schrieffer_wolff with SymExpr
+        result = schrieffer_wolff(H, P; order=2)
+        
+        @test result.H_eff isa SymExpr
+        @test result.S isa SymExpr || result.S isa SymSum
+        
+        # Test that exchange terms appear when we compute [S, V] for 2 atoms
+        # Use the explicitly defined generator from the example
+        S1 = SymSum((tc_g/tc_Δ) * (a()*σp(i) - a'()*σm(i)), i)
+        
+        # Expand to 2 atoms
+        S1_2 = expand_symbolic(S1, 1:2)
+        H_int_2 = expand_symbolic(H_int, 1:2)
+        
+        # Compute [S, V] for 2 atoms
+        comm_SV = normal_form(comm(S1_2, H_int_2))
+        
+        # Check for exchange terms: σ⁺(1)σ⁻(2) and σ⁺(2)σ⁻(1)
+        has_exchange_12 = false
+        has_exchange_21 = false
+        
+        for (term, _) in comm_SV.terms
+            term_str = string(term.bares)
+            if occursin("σ⁺(1)", term_str) && occursin("σ⁻(2)", term_str)
+                has_exchange_12 = true
+            end
+            if occursin("σ⁺(2)", term_str) && occursin("σ⁻(1)", term_str)
+                has_exchange_21 = true
+            end
+        end
+        
+        @test has_exchange_12
+        @test has_exchange_21
+    end
+
     QuantumAlgebra.use_σpm(false)
 end
