@@ -13,6 +13,7 @@ Unitary transformations are fundamental tools in quantum mechanics for simplifyi
 | Transformation | Purpose | Status |
 |----------------|---------|--------|
 | **Schrieffer-Wolff** | Block-diagonalize H, derive effective low-energy Hamiltonians | Implemented |
+| **Magnus Expansion** | Effective Hamiltonians for periodically driven (Floquet) systems | Implemented |
 | **Lang-Firsov** | Eliminate linear electron-phonon coupling (polaron transformation) | Planned |
 | **Bogoliubov** | Diagonalize quadratic bosonic Hamiltonians | Planned |
 | **Holstein-Primakoff** | Map spin operators to bosonic operators | Planned |
@@ -105,16 +106,27 @@ The package automatically chooses the optimal algorithm based on operator types:
 
 ### Arbitrary Perturbation Order
 
+Higher orders can be computed with parallel acceleration:
+
 ```julia
 result_2nd = schrieffer_wolff(H, P; order=2)
-result_4th = schrieffer_wolff(H, P; order=4)  # Higher accuracy
+result_4th = schrieffer_wolff(H, P; order=4, parallel=true)  # Multi-threaded
 ```
+
+Start Julia with threads for best performance: `julia -t 4`
+
+| Order | Time (4 threads) | Use Case |
+|-------|------------------|----------|
+| 2 | ~50 ms | Dispersive shifts |
+| 4 | ~0.4 s | Kerr nonlinearity, Bloch-Siegert |
+| 5 | ~1.5 s | Higher-order corrections |
+| 6 | ~50 s | Research applications |
 
 ### Verified Implementation
 
 - Generator equation `[S, H₀] = -V` verified exactly
 - Numerical accuracy <0.02% in perturbative regime
-- 147 tests covering TLS, bosons, SU(3), and N-level systems
+- 253 tests covering TLS, bosons, SU(3), N-level systems, and Magnus expansion
 
 ## Documentation
 
@@ -140,6 +152,31 @@ The generator S satisfies `[S, H₀] = -V`.
 - Exchange interactions (t-J model from Hubbard)
 - Effective spin models
 - Adiabatic elimination of fast modes
+
+### Magnus Expansion (Implemented)
+
+Computes effective time-independent Hamiltonians for periodically driven systems:
+
+```julia
+using UnitaryTransformations, QuantumAlgebra, Symbolics
+
+QuantumAlgebra.use_σpm(true)
+@variables Δ Ω ω
+
+# Circularly driven qubit: H(t) = Δ/2 σz + Ω/2 (e^{iωt} σ⁺ + e^{-iωt} σ⁻)
+modes = Dict(
+    0  => Δ/2 * σz(),
+    1  => Ω/2 * σp(),
+    -1 => Ω/2 * σm()
+)
+
+result = magnus_expansion(modes, ω; order=4)
+println(result.H_eff)
+# Output: Δ/2 σz - Ω²/(4ω) σz + O(Ω²Δ/ω²)
+#                  ^^^^^^^^^^^ Bloch-Siegert shift
+```
+
+**Applications**: AC Stark shifts, Floquet engineering, dynamical decoupling
 
 ### Lang-Firsov (Planned)
 

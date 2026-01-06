@@ -11,7 +11,30 @@ using QuantumAlgebra
 using QuantumAlgebra:
     QuExpr, QuTerm, BaseOperator, BaseOpProduct, TLSCreate_, TLSDestroy_, normal_form, comm
 
-import ..UnitaryTransformations: get_spin_constraint_info, simplify_coefficients, multi_nested_commutator, compositions
+import ..UnitaryTransformations:
+    get_spin_constraint_info, simplify_coefficients, multi_nested_commutator, compositions
+
+using Symbolics: Num, expand
+
+"""
+    _simplify_expand_only(expr::QuExpr)
+
+Fast incremental simplification that only expands expressions.
+This prevents expression tree explosion without expensive simplification.
+"""
+function _simplify_expand_only(expr::QuExpr)
+    result_terms = Dict{QuTerm,Number}()
+    for (term, coeff) in expr.terms
+        if coeff isa Num
+            # Just expand - this flattens nested sums/products efficiently
+            simplified = expand(coeff)
+            result_terms[term] = simplified
+        else
+            result_terms[term] = coeff
+        end
+    end
+    return QuExpr(result_terms)
+end
 
 """
     schrieffer_wolff(H::QuExpr, P::Subspace; order::Int=2)
@@ -30,13 +53,26 @@ in perturbation theory.
   - order=2: Standard SW, captures g² corrections (dispersive shifts)
   - order=4: Includes g⁴ corrections (Kerr nonlinearity, Bloch-Siegert, etc.)
 - `simplify_generator`: Whether to simplify the generator S (default: false).
-  Simplifying S can be very slow at high orders due to GCD computations on
-  complex symbolic fractions. Set to `true` if you need simplified S.
+  Simplifying S can be slow at high orders. Set to `true` if you need simplified S.
+- `simplify_mode`: Simplification mode for final output (default: `:fast`).
+  - `:none` - No simplification (fastest)
+  - `:fast` - Expansion only (default, very fast, recommended)
+  - `:standard` - Basic algebraic simplification with expansion
+  - `:fractions` - Simplify fractions with GCD (slow on complex expressions)
+  - `:aggressive` - Full simplification (slowest)
+- `diagonal_only`: If true, only compute H_eff (skip computing higher-order generators).
+  This is much faster for high orders when you only need the effective Hamiltonian.
+  Note: This uses a simplified algorithm that only uses S₁.
+- `parallel`: If true, use multi-threading for orders > 3 (default: false).
+  Requires Julia to be started with multiple threads (e.g., `julia -t 4`).
+  For best performance, use 4-8 threads; more threads can cause lock contention.
+  Parallelization is most beneficial for orders 4-6 with complex Hamiltonians.
 
 # Returns
 - Named tuple `(H_eff, S, H_P)` where:
   - `H_eff`: The full block-diagonal effective Hamiltonian
   - `S`: The generator of the transformation (S = S₁ + S₂ + ... where Sₙ is O(gⁿ))
+        Note: If `diagonal_only=true`, S contains only S₁.
   - `H_P`: The effective Hamiltonian projected onto subspace P
 
 # Algorithm
@@ -62,8 +98,8 @@ H = ω * a'()*a() + Δ/2 * σz() + g * (a'()*σm() + a()*σp())
 P = Subspace(σz() => -1)  # qubit ground state
 result = schrieffer_wolff(H, P; order=2)
 
-# For 4th order corrections (Kerr effect, etc.)
-result4 = schrieffer_wolff(H, P; order=4)
+# For 4th order corrections (Kerr effect, etc.) - parallel computation
+result4 = schrieffer_wolff(H, P; order=4, parallel=true)
 ```
 """
 function schrieffer_wolff(
@@ -71,6 +107,9 @@ function schrieffer_wolff(
     P::Subspace;
     order::Int = 2,
     simplify_generator::Bool = false,
+    simplify_mode::Symbol = :fast,
+    diagonal_only::Bool = false,
+    parallel::Bool = false,
 )
     order >= 2 || throw(ArgumentError("order must be at least 2, got $order"))
 
@@ -79,6 +118,11 @@ function schrieffer_wolff(
 
     # Decompose H = H₀ (diagonal) + V (off-diagonal)
     H0, V = decompose(H, P)
+
+    # Use optimized diagonal-only algorithm if requested
+    if diagonal_only
+        return _schrieffer_wolff_diagonal_only(H, H0, V, P, order, simplify_mode)
+    end
 
     # Store generators at each order: S[n] = Sₙ (order gⁿ)
     S = Vector{QuExpr}(undef, order)
@@ -99,8 +143,10 @@ function schrieffer_wolff(
         # H_eff = H + [S,H] + (1/2)[S,[S,H]] + (1/6)[S,[S,[S,H]]] + ...
         # with S = S₁ + S₂ + ... + Sₙ₋₁ (Sₙ not yet determined)
 
-        order_n_terms = _collect_bch_terms_at_order(S, V_od, n, H0, V, P)
-        order_n_terms = simplify_coefficients(order_n_terms)
+        order_n_terms = _collect_bch_terms_at_order(S, V_od, n, H0, V, P; parallel = parallel)
+        # Simplify incrementally to prevent expression explosion
+        # Use expand-only simplification which is fast but effective
+        order_n_terms = _simplify_expand_only(order_n_terms)
 
         # Decompose into diagonal (→ H_eff) and off-diagonal (→ determines Sₙ)
         order_n_diag, order_n_od = decompose(order_n_terms, P)
@@ -127,21 +173,168 @@ function schrieffer_wolff(
         end
     end
 
-    # Final simplification
-    H_eff = simplify_coefficients(H_eff)
+    # Final simplification - only at the end, using specified mode
+    H_eff = simplify_coefficients(H_eff; mode = simplify_mode)
 
     if simplify_generator
-        S_total = simplify_coefficients(S_total)
+        S_total = simplify_coefficients(S_total; mode = simplify_mode)
     end
 
     # Project the effective Hamiltonian onto subspace P
-    H_P = simplify_coefficients(project_to_subspace(H_eff, P))
+    H_P = simplify_coefficients(project_to_subspace(H_eff, P); mode = simplify_mode)
 
     return (H_eff = H_eff, S = S_total, H_P = H_P)
 end
 
 """
-    _collect_bch_terms_at_order(S, V_od, n, H0, V, P)
+    _schrieffer_wolff_diagonal_only(H, H0, V, P, order, simplify_mode)
+
+Optimized SW algorithm that only computes diagonal contributions to H_eff.
+
+This is much faster for high orders because:
+1. We only need S₁ (first-order generator)
+2. We don't need to solve for higher-order generators
+3. We only extract diagonal parts from nested commutators
+
+The diagonal contributions at each order come from:
+- Order 2: (1/2)[S₁, V] (diagonal part)
+- Order 3: (1/6)[S₁, [S₁, V]] (diagonal part)  
+- Order 4: (1/24)[S₁, [S₁, [S₁, V]]] (diagonal part)
+- etc.
+
+This uses the simplified BCH expansion with only S₁, which gives the leading
+contributions at each order. Higher-order generators contribute at higher orders.
+"""
+function _schrieffer_wolff_diagonal_only(
+    H::QuExpr,
+    H0::QuExpr,
+    V::QuExpr,
+    P::Subspace,
+    order::Int,
+    simplify_mode::Symbol,
+)
+    # Compute only S₁
+    S1 = solve_for_generator(H0, V, P)
+
+    # Initialize effective Hamiltonian
+    H_eff = H0
+
+    # Compute nested commutators [S₁, [S₁, [..., [S₁, V]...]]] for increasing depth
+    # and extract diagonal parts
+
+    # Order 2: (1/2)[S₁, V]
+    # Order 3: (1/6)[S₁, [S₁, V]] = (1/6)[S₁, C₁] where C₁ = [S₁, V]
+    # Order k: (1/k!)[S₁, [S₁, [..., [S₁, V]...]]] (k-1 nested commutators with S₁)
+
+    current_comm = V  # Start with V
+
+    for k = 2:order
+        # Compute [S₁, current_comm]
+        next_comm = normal_form(comm(S1, current_comm))
+
+        # BCH coefficient for this order
+        bch_coeff = big(1) // factorial(big(k))
+
+        # Extract diagonal part and add to H_eff
+        diag_part, _ = decompose(bch_coeff * next_comm, P)
+        H_eff = normal_form(H_eff + diag_part)
+
+        # Update for next iteration
+        current_comm = next_comm
+    end
+
+    # Final simplification
+    H_eff = simplify_coefficients(H_eff; mode = simplify_mode)
+
+    # Project to subspace
+    H_P = simplify_coefficients(project_to_subspace(H_eff, P); mode = simplify_mode)
+
+    return (H_eff = H_eff, S = S1, H_P = H_P)
+end
+
+"""
+    WorkItem
+
+A single unit of work for parallel BCH term computation.
+Contains all information needed to compute one nested commutator term.
+"""
+struct WorkItem
+    comp::Vector{Int}           # Composition (generator indices)
+    base_type::Symbol           # :V or :H0
+    bch_coeff::Rational{BigInt} # BCH coefficient (1/k!)
+    inner_idx::Int              # For :H0 type, the index into V_od (0 for :V type)
+end
+
+"""
+    _generate_work_items(S, V_od, n)
+
+Pre-generate all work items for order n BCH term collection.
+Returns a vector of WorkItem structs that can be processed in parallel.
+"""
+function _generate_work_items(S::Vector{QuExpr}, V_od::Vector{QuExpr}, n::Int)
+    work_items = WorkItem[]
+    max_depth = n
+
+    for k = 1:max_depth
+        bch_coeff = big(1) // factorial(big(k))
+
+        # Part 1: Base operator is V (order 1)
+        target_sum = n - 1
+        if target_sum >= k
+            for comp in compositions(target_sum, k; min_val = 1, max_val = n-1)
+                if all(i -> isassigned(S, i), comp)
+                    push!(work_items, WorkItem(comp, :V, bch_coeff, 0))
+                end
+            end
+        end
+
+        # Part 2: Base operator is H₀ (order 0)
+        target_sum_H0 = n
+        if target_sum_H0 >= k
+            for comp in compositions(target_sum_H0, k; min_val = 1, max_val = n-1)
+                if all(i -> isassigned(S, i), comp)
+                    inner_idx = comp[end]
+                    if isassigned(V_od, inner_idx) && !isempty(V_od[inner_idx].terms)
+                        push!(work_items, WorkItem(comp, :H0, bch_coeff, inner_idx))
+                    end
+                end
+            end
+        end
+    end
+
+    return work_items
+end
+
+"""
+    _compute_work_item(item, S, V_od, V)
+
+Compute a single BCH term from a WorkItem.
+This function is designed to be called from multiple threads.
+"""
+function _compute_work_item(
+    item::WorkItem,
+    S::Vector{QuExpr},
+    V_od::Vector{QuExpr},
+    V::QuExpr,
+)
+    if item.base_type == :V
+        generators = QuExpr[S[i] for i in item.comp]
+        term = multi_nested_commutator(generators, V)
+        return item.bch_coeff * term
+    else  # :H0
+        inner_result = -V_od[item.inner_idx]
+        if length(item.comp) == 1
+            return item.bch_coeff * inner_result
+        else
+            outer_generators = QuExpr[S[i] for i in item.comp[1:(end-1)]]
+            term = multi_nested_commutator(outer_generators, inner_result)
+            return item.bch_coeff * term
+        end
+    end
+end
+
+"""
+    _collect_bch_terms_at_order(S, V_od, n, H0, V, P; parallel=false)
 
 Collect all BCH expansion terms at order n in the coupling.
 
@@ -152,6 +345,9 @@ with appropriate BCH coefficients (1/k!).
 
 This function dynamically computes all relevant terms by enumerating compositions
 of the required order among the available generators.
+
+# Arguments
+- `parallel`: If true and n > 3, use multi-threading for term computation.
 
 # Algorithm
 For each BCH depth k (number of nested commutators), we need to collect terms where
@@ -171,82 +367,41 @@ function _collect_bch_terms_at_order(
     n::Int,
     H0::QuExpr,
     V::QuExpr,
-    P::Subspace,
+    P::Subspace;
+    parallel::Bool = false,
 )
-    result = QuExpr()
-    
-    # Import helper functions
-    # multi_nested_commutator and compositions are from commutator_series.jl
-    
-    # For BCH expansion, we need nested commutators [Sᵢ₁, [Sᵢ₂, [..., [Sᵢₖ, X]...]]]
-    # with coefficient 1/k!
-    
-    # At order n, we collect terms where: sum of generator orders + order(X) = n
-    # Generators Sₘ have order m (for m = 1, ..., n-1)
-    # V has order 1
-    # H₀ has order 0, but [Sₘ, H₀] = -V_od[m] effectively contributes order m
-    
-    # Strategy: We separate the contribution into two parts:
-    # 1. Nested commutators ending in V: [Sᵢ₁, [Sᵢ₂, [..., [Sᵢₖ, V]...]]]
-    #    where i₁ + i₂ + ... + iₖ = n - 1 (since V is order 1)
-    # 2. Nested commutators ending in H₀: [Sᵢ₁, [Sᵢ₂, [..., [Sᵢₖ, H₀]...]]]
-    #    Using [Sₘ, H₀] = -V_od[m], these become:
-    #    [Sᵢ₁, [Sᵢ₂, [..., -V_od[iₖ]...]]] where i₁ + i₂ + ... + iₖ = n
-    
-    # Maximum depth for Part 1: n-1 generators (each at least order 1) to reach sum n-1
-    # Maximum depth for Part 2: n generators (each at least order 1) to reach sum n
-    # So we need max_depth = n to cover both cases
-    max_depth = n
-    
-    for k in 1:max_depth
-        # BCH coefficient: 1/k!
-        bch_coeff = big(1) // factorial(big(k))
-        
-        # Part 1: Base operator is V (order 1)
-        # Need generator orders to sum to n - 1
-        target_sum = n - 1
-        if target_sum >= k  # Need at least 1 per generator
-            for comp in compositions(target_sum, k; min_val=1, max_val=n-1)
-                # Check that all generator indices are valid (we only have S[1]...S[n-1])
-                if all(i -> isassigned(S, i), comp)
-                    generators = QuExpr[S[i] for i in comp]
-                    term = multi_nested_commutator(generators, V)
-                    result = normal_form(result + bch_coeff * term)
-                end
-            end
+    # Generate all work items
+    work_items = _generate_work_items(S, V_od, n)
+
+    # Use parallel execution for n > 3 when requested and multiple threads available
+    # Note: For best performance with many threads (>8), consider limiting thread count
+    # to avoid lock contention in QuantumAlgebra. Start Julia with: julia -t 4 or julia -t 8
+    num_items = length(work_items)
+    use_parallel = parallel && n > 3 && Threads.nthreads() > 1 && num_items > 1
+
+    if use_parallel
+        # Parallel execution: compute each term independently
+        results = Vector{QuExpr}(undef, num_items)
+
+        Threads.@threads for i in eachindex(work_items)
+            results[i] = _compute_work_item(work_items[i], S, V_od, V)
         end
-        
-        # Part 2: Base operator is H₀ (order 0)
-        # The innermost commutator [Sᵢₖ, H₀] = -V_od[iₖ]
-        # So we compute [Sᵢ₁, [..., [Sᵢₖ₋₁, -V_od[iₖ]]...]]
-        # where i₁ + i₂ + ... + iₖ = n
-        target_sum_H0 = n
-        if target_sum_H0 >= k  # Need at least 1 per generator
-            for comp in compositions(target_sum_H0, k; min_val=1, max_val=n-1)
-                # Check that all generator indices are valid
-                if all(i -> isassigned(S, i), comp)
-                    # The innermost generator index gives us V_od[iₖ]
-                    inner_idx = comp[end]
-                    if isassigned(V_od, inner_idx) && !isempty(V_od[inner_idx].terms)
-                        # [Sᵢₖ, H₀] = -V_od[iₖ]
-                        inner_result = -V_od[inner_idx]
-                        
-                        if k == 1
-                            # Just [Sᵢ₁, H₀] = -V_od[i₁], no further nesting
-                            result = normal_form(result + bch_coeff * inner_result)
-                        else
-                            # Apply remaining generators: [Sᵢ₁, [..., [Sᵢₖ₋₁, -V_od[iₖ]]...]]
-                            outer_generators = QuExpr[S[i] for i in comp[1:end-1]]
-                            term = multi_nested_commutator(outer_generators, inner_result)
-                            result = normal_form(result + bch_coeff * term)
-                        end
-                    end
-                end
-            end
+
+        # Serial reduction to avoid contention
+        result = QuExpr()
+        for r in results
+            result = normal_form(result + r)
         end
+        return result
+    else
+        # Sequential execution (original behavior)
+        result = QuExpr()
+        for item in work_items
+            term = _compute_work_item(item, S, V_od, V)
+            result = normal_form(result + term)
+        end
+        return result
     end
-    
-    return result
 end
 
 """

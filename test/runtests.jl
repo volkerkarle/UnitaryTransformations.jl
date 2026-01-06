@@ -10,6 +10,7 @@ using Test
         @test isdefined(UnitaryTransformations, :Subspace)
         @test isdefined(UnitaryTransformations, :schrieffer_wolff)
         @test isdefined(UnitaryTransformations, :commutator_series)
+        @test isdefined(UnitaryTransformations, :magnus_expansion)
     end
 
     @testset "QuantumAlgebra integration" begin
@@ -24,4 +25,6 @@ using Test
     include("test_subspace.jl")
     include("test_commutator_series.jl")
     include("test_schrieffer_wolff.jl")
+    include("test_magnus.jl")
+    include("test_magnus_comprehensive.jl")
 end

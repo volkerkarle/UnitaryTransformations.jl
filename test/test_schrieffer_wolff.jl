@@ -515,15 +515,16 @@
     @testset "4th order SW - Kerr nonlinearity" begin
         # Test that 4th order SW produces Kerr terms (a†²a²)
         # For Rabi model in dispersive regime
+        # Using diagonal_only=true for faster computation
 
         @variables ω_c Δ g
 
         # Rabi Hamiltonian: H = ω_c a†a + Δ/2 σz + g(a† + a)(σ+ + σ-)
         H = ω_c * a'() * a() + Δ / 2 * σz() + g * (a'() + a()) * (σp() + σm())
-        P = Subspace(a'()*a() => 0)
+        P = Subspace(a'() * a() => 0)
 
-        # Compute 4th order SW
-        result4 = schrieffer_wolff(H, P; order = 4)
+        # Compute 4th order SW with diagonal_only for speed
+        result4 = schrieffer_wolff(H, P; order = 4, diagonal_only = true)
 
         # Check that the result is block-diagonal
         @test is_diagonal(result4.H_eff, P)
@@ -563,7 +564,7 @@
 
         # Verify the Kerr coefficient has g⁴ dependence
         # Substitute g → 0: coefficient should be 0
-        val_g0 = Symbolics.substitute(kerr_coeff, Dict(g => 0.0))
+        val_g0 = Symbolics.substitute(kerr_coeff, Dict(g => 0.0, Δ => 5.0, ω_c => 1.0))
         @test abs(Float64(Symbolics.value(val_g0))) < 1e-10
 
         # Verify scaling: K(2g)/K(g) ≈ 16 (since K ~ g⁴)

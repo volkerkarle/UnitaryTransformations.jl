@@ -94,7 +94,32 @@ You can go to higher orders for more accuracy:
 result_4th = schrieffer_wolff(H, P; order=4)
 ```
 
-Note: Higher orders produce more complex expressions and take longer to compute.
+For orders 4 and above, enable parallel computation for better performance:
+
+```julia
+# Start Julia with threads: julia -t 4
+result_4th = schrieffer_wolff(H, P; order=4, parallel=true)
+```
+
+| Order | Approx. Time | Physics Captured |
+|-------|--------------|------------------|
+| 2 | ~50 ms | Dispersive shifts |
+| 4 | ~0.4 s | Kerr nonlinearity, Bloch-Siegert |
+| 5 | ~1.5 s | Higher-order corrections |
+| 6 | ~50 s | Research applications |
+
+**Simplification modes**: Control the speed/simplification trade-off:
+
+```julia
+# Fastest: no simplification (expressions may be verbose)
+result = schrieffer_wolff(H, P; order=4, simplify_mode=:none)
+
+# Default: fast expansion (recommended)
+result = schrieffer_wolff(H, P; order=4, simplify_mode=:fast)
+
+# Thorough: full algebraic simplification (slower)
+result = schrieffer_wolff(H, P; order=4, simplify_mode=:standard)
+```
 
 ## Step 5: Analyze the Results
 
@@ -279,6 +304,8 @@ result = schrieffer_wolff(H, P; order=2)
 3. **Use `collect_terms`** to see simplified coefficients
 4. **The physics is in the coefficients** - extract them with `extract_coefficient`
 5. **N-level and SU(N) systems** are automatically handled with appropriate methods
+6. **Use `parallel=true`** for orders 4+ and start Julia with `-t 4` or more threads
+7. **Use `simplify_mode=:none`** for maximum speed when exploring
 
 ## Next Steps
 

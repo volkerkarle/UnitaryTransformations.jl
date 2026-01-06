@@ -7,7 +7,8 @@ Provides several BCH-related functions:
 - `nested_commutator(S, H, n)`: Compute n-fold nested commutator
 """
 
-export commutator_series, nested_commutator, multi_nested_commutator, compositions, bch_transform, bch_combine
+export commutator_series,
+    nested_commutator, multi_nested_commutator, compositions, bch_transform, bch_combine
 
 using QuantumAlgebra
 using QuantumAlgebra: QuExpr, normal_form, comm
@@ -53,7 +54,7 @@ The generators are applied from right to left (innermost first), so:
 """
 function multi_nested_commutator(generators::Vector{QuExpr}, X::QuExpr)
     isempty(generators) && return X
-    
+
     result = X
     # Apply from right to left: for [S₁, [S₂, X]], we first compute [S₂, X], then [S₁, ...]
     for g in reverse(generators)
@@ -86,16 +87,16 @@ compositions(4, 2; max_val=2)  # [(2,2)]
 compositions(4, 3)  # [(1,1,2), (1,2,1), (2,1,1)]
 ```
 """
-function compositions(n::Int, k::Int; min_val::Int=1, max_val::Int=n)
+function compositions(n::Int, k::Int; min_val::Int = 1, max_val::Int = n)
     n >= 0 || throw(ArgumentError("n must be non-negative, got $n"))
     k >= 0 || throw(ArgumentError("k must be non-negative, got $k"))
-    
+
     if k == 0
         return n == 0 ? [Int[]] : Vector{Int}[]
     end
-    
+
     result = Vector{Vector{Int}}()
-    
+
     function generate(current::Vector{Int}, remaining::Int, parts_left::Int)
         if parts_left == 0
             if remaining == 0
@@ -103,22 +104,22 @@ function compositions(n::Int, k::Int; min_val::Int=1, max_val::Int=n)
             end
             return
         end
-        
+
         # For the current part, try all valid values
         # Must leave room for remaining parts to have at least min_val each
         min_remaining = min_val * (parts_left - 1)
         max_remaining = max_val * (parts_left - 1)
-        
+
         lo = max(min_val, remaining - max_remaining)
         hi = min(max_val, remaining - min_remaining)
-        
-        for val in lo:hi
+
+        for val = lo:hi
             push!(current, val)
             generate(current, remaining - val, parts_left - 1)
             pop!(current)
         end
     end
-    
+
     generate(Int[], n, k)
     return result
 end

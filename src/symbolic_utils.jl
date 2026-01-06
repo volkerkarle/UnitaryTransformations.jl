@@ -15,26 +15,46 @@ using Symbolics
 using Symbolics: Num, simplify, simplify_fractions
 
 """
-    simplify_coefficients(expr::QuExpr; aggressive::Bool=false)
+    simplify_coefficients(expr::QuExpr; mode::Symbol=:fast)
 
 Simplify all Symbolics coefficients in a QuExpr.
 Returns a new QuExpr with simplified coefficients.
 
-By default, uses `simplify_fractions` which is faster but may not fully
-simplify complex expressions. Set `aggressive=true` to use full `simplify`
-which can find more cancellations but is slower.
+# Modes
+- `:none` - No simplification (fastest, for internal computations)
+- `:fast` - Basic expansion only (default, very fast)
+- `:standard` - Use `simplify(; expand=true)` (slower but more thorough)
+- `:fractions` - Use `simplify_fractions` (slow, simplifies rational expressions)
+- `:aggressive` - Use full `simplify` (slowest, most thorough)
 
-Note: Parallelization was attempted but SymbolicUtils/Symbolics.jl
-has thread-safety issues that cause race conditions during simplification.
-The serial version is used for correctness.
+Note: The `:fractions` and `:aggressive` modes can be extremely slow on complex 
+expressions due to polynomial GCD and rewriting computations. Use `:fast` for 
+most cases - it flattens expressions and combines like terms efficiently.
 """
-function simplify_coefficients(expr::QuExpr; aggressive::Bool = false)
+function simplify_coefficients(expr::QuExpr; mode::Symbol = :fast, aggressive::Bool = false)
+    # Handle legacy `aggressive` parameter
+    if aggressive
+        mode = :aggressive
+    end
+
+    # Fast path: no simplification
+    if mode == :none
+        return expr
+    end
+
     # Build result directly to avoid expensive iszero checks in + operator
     result_terms = Dict{QuTerm,Number}()
     for (term, coeff) in expr.terms
         if coeff isa Num
-            # Use simplify for better results, simplify_fractions for speed
-            simplified_coeff = aggressive ? simplify(coeff) : simplify_fractions(coeff)
+            simplified_coeff = if mode == :aggressive
+                simplify(coeff)
+            elseif mode == :fractions
+                simplify_fractions(coeff)
+            elseif mode == :standard
+                simplify(coeff; expand = true)
+            else  # :fast - just expand, no simplify (much faster)
+                expand(coeff)
+            end
             result_terms[term] = simplified_coeff
         else
             result_terms[term] = coeff

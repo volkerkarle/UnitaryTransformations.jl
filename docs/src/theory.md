@@ -256,3 +256,141 @@ Numerical methods give exact eigenvalues but not analytical expressions. SW prod
 3. C. Cohen-Tannoudji, J. Dupont-Roc, and G. Grynberg, *Atom-Photon Interactions* (Wiley, 1998), Chapter 3.
 
 4. M. Wagner, *Unitary Transformations in Solid State Physics* (North-Holland, 1986).
+
+5. W. Magnus, "On the exponential solution of differential equations for a linear operator," *Comm. Pure Appl. Math.* **7**, 649 (1954).
+
+6. S. Blanes et al., "The Magnus expansion and some of its applications," *Physics Reports* **470**, 151 (2009).
+
+---
+
+## [Magnus Expansion](@id magnus_expansion)
+
+The **Magnus expansion** is a technique for solving time-dependent Schrödinger equations and computing effective Hamiltonians for periodically driven (Floquet) systems.
+
+### The Problem
+
+Consider a time-dependent Schrödinger equation:
+
+```math
+i\frac{\partial U}{\partial t} = H(t) U(t)
+```
+
+where ``H(t)`` is periodic with period ``T = 2\pi/\omega``. We want to find an effective time-independent Hamiltonian ``H_{\text{eff}}`` such that after one period:
+
+```math
+U(T) = e^{-i H_{\text{eff}} T}
+```
+
+### Fourier Representation
+
+A periodic Hamiltonian can be written in Fourier form:
+
+```math
+H(t) = \sum_n H_n e^{in\omega t}
+```
+
+where the Hermiticity condition requires ``H_{-n} = H_n^\dagger``.
+
+### The Magnus Series
+
+The solution to the Schrödinger equation can be written as:
+
+```math
+U(t) = e^{\Omega(t)}
+```
+
+where ``\Omega(t)`` is the Magnus series:
+
+```math
+\Omega(t) = \Omega_1(t) + \Omega_2(t) + \Omega_3(t) + \cdots
+```
+
+The effective Hamiltonian is:
+
+```math
+H_{\text{eff}} = i\Omega(T)/T = \sum_{k=1}^\infty \Omega_k
+```
+
+### Orders of the Expansion
+
+**First order (k=1):**
+```math
+\Omega_1 = H_0
+```
+
+The leading term is simply the time-averaged Hamiltonian.
+
+**Second order (k=2):**
+```math
+\Omega_2 = \sum_{n>0} \frac{-[H_n, H_{-n}]}{n\omega}
+```
+
+This captures effects like the **Bloch-Siegert shift** from counter-rotating drive terms.
+
+**Higher orders (k≥3):**
+
+For order ``k``, the Magnus term involves nested commutators with ``k`` Fourier components:
+
+```math
+\Omega_k = \sum_{\substack{n_1,\ldots,n_k \\ \sum_j n_j = 0}} C(n_1,\ldots,n_k) \, [[\cdots[[H_{n_1}, H_{n_2}], H_{n_3}],\ldots], H_{n_k}]
+```
+
+The coefficients are:
+
+```math
+C(n_1,\ldots,n_k) = \frac{1}{\omega^{k-1} \prod_{j=1}^{k-1} s_j}
+```
+
+where ``s_j = n_1 + \cdots + n_j`` are partial sums.
+
+### Resonance Condition
+
+The sum ``\sum_j n_j = 0`` is the **resonance condition**. It ensures that only certain combinations of Fourier modes contribute to the effective Hamiltonian.
+
+### Reducible Terms
+
+A term is **reducible** if any intermediate partial sum ``s_j = 0``. Such terms are excluded because they factorize into products of lower-order terms.
+
+### Example: Circularly Driven Qubit
+
+For a qubit driven by a circular field:
+
+```math
+H(t) = \frac{\Delta}{2}\sigma_z + \frac{\Omega}{2}(e^{i\omega t}\sigma^+ + e^{-i\omega t}\sigma^-)
+```
+
+The Fourier modes are:
+- ``H_0 = \frac{\Delta}{2}\sigma_z``
+- ``H_1 = \frac{\Omega}{2}\sigma^+``
+- ``H_{-1} = \frac{\Omega}{2}\sigma^-``
+
+The second-order correction is:
+
+```math
+\Omega_2 = -\frac{[H_1, H_{-1}]}{\omega} = -\frac{\Omega^2}{4\omega}[\sigma^+, \sigma^-] = -\frac{\Omega^2}{4\omega}\sigma_z
+```
+
+This is the **Bloch-Siegert shift** — a correction to the qubit frequency proportional to ``\Omega^2/\omega``.
+
+### Convergence
+
+The Magnus expansion converges when:
+
+```math
+\int_0^T \|H(t)\| \, dt < \pi
+```
+
+For high-frequency driving (``\omega \gg \|H\|``), convergence is typically rapid.
+
+### Physical Applications
+
+| Application | Key Effect |
+|-------------|------------|
+| NMR | Rotating-wave corrections |
+| Trapped ions | Micromotion effects |
+| Circuit QED | AC Stark shifts |
+| Floquet engineering | Artificial gauge fields |
+
+### Comparison with Floquet Theory
+
+The Magnus expansion provides a **high-frequency expansion** of Floquet theory. While exact Floquet diagonalization gives the full quasienergy spectrum, the Magnus expansion produces analytical expressions valid in the ``\omega \gg \|V\|`` regime.

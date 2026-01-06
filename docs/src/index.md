@@ -20,6 +20,7 @@ This package provides symbolic implementations that produce analytical expressio
 | Transformation | Purpose | Status |
 |----------------|---------|--------|
 | [**Schrieffer-Wolff**](@ref sw_transformation) | Block-diagonalize Hamiltonians, derive effective low-energy theories | ✓ Implemented |
+| [**Magnus Expansion**](@ref magnus_expansion) | Effective Hamiltonians for periodically driven (Floquet) systems | ✓ Implemented |
 | **Lang-Firsov** | Eliminate linear electron-phonon coupling (polaron frame) | Planned |
 | **Bogoliubov** | Diagonalize quadratic bosonic Hamiltonians | Planned |
 | **Holstein-Primakoff** | Map spin operators to bosonic operators | Planned |
@@ -84,13 +85,13 @@ Depth = 1
 ```
 
 ### [Theory](@ref theory)
-Mathematical background on unitary transformations, including the Schrieffer-Wolff method and the Baker-Campbell-Hausdorff formula.
+Mathematical background on unitary transformations, including the Schrieffer-Wolff method, Magnus expansion, and the Baker-Campbell-Hausdorff formula.
 
 ### [Tutorial](@ref tutorial)
 Step-by-step guide to using the Schrieffer-Wolff transformation.
 
 ### [Examples](@ref examples)
-Physics applications: Jaynes-Cummings, Rabi model, multi-level atoms.
+Physics applications: Jaynes-Cummings, Rabi model, multi-level atoms, Floquet systems.
 
 ### [API Reference](@ref api)
 Complete function documentation.

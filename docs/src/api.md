@@ -9,6 +9,15 @@ schrieffer_wolff
 sw_generator
 ```
 
+### Magnus Expansion (Floquet Systems)
+
+```@docs
+magnus_expansion
+FourierHamiltonian
+check_hermiticity
+MagnusResult
+```
+
 ### Subspace Definition
 
 ```@docs
@@ -90,6 +99,29 @@ simplify_coefficients
 substitute_values
 extract_coefficient
 collect_terms
+```
+
+#### Simplification Modes
+
+The `simplify_coefficients` function supports several modes for different speed/quality trade-offs:
+
+| Mode | Description | Speed |
+|------|-------------|-------|
+| `:none` | No simplification | Fastest |
+| `:fast` | Expansion only (flattens nested expressions) | Fast (default) |
+| `:standard` | Full algebraic simplification with expansion | Moderate |
+| `:fractions` | Simplify rational expressions with GCD | Slow |
+| `:aggressive` | Maximum simplification | Slowest |
+
+```julia
+# For exploration and debugging (fastest)
+result = schrieffer_wolff(H, P; order=4, simplify_mode=:none)
+
+# For final results (default, good balance)
+result = schrieffer_wolff(H, P; order=4, simplify_mode=:fast)
+
+# For publication-ready expressions
+H_simplified = simplify_coefficients(result.H_P; mode=:standard)
 ```
 
 ### LaTeX Output
@@ -181,6 +213,38 @@ RAISING    # Operator raises out of subspace P
 LOWERING   # Operator lowers into subspace P
 MIXED      # Operator has mixed character
 ```
+
+---
+
+## Performance Tips
+
+### Parallel Computation
+
+For high-order SW transformations, enable multi-threading:
+
+```bash
+# Start Julia with 4 threads
+julia -t 4
+```
+
+```julia
+# Enable parallel BCH term computation
+result = schrieffer_wolff(H, P; order=5, parallel=true)
+```
+
+### Benchmarks (Jaynes-Cummings model, 4 threads)
+
+| Order | `simplify_mode=:none` | `simplify_mode=:fast` |
+|-------|----------------------|----------------------|
+| 4 | 0.4 s | 0.6 s |
+| 5 | 1.7 s | 1.7 s |
+| 6 | 50 s | 80 s |
+
+### Recommended Workflow
+
+1. **Explore** with `simplify_mode=:none` for speed
+2. **Verify** with `simplify_mode=:fast` (default)
+3. **Simplify for publication** with `simplify_coefficients(expr; mode=:standard)`
 
 ---
 

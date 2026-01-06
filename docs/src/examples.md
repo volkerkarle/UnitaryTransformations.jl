@@ -262,6 +262,118 @@ The package automatically detects SU(3) and uses the matrix-element method.
 
 ---
 
+## Magnus Expansion: Floquet Systems
+
+The Magnus expansion computes effective Hamiltonians for periodically driven systems. For a Hamiltonian in Fourier representation:
+
+```math
+H(t) = \sum_n H_n e^{in\omega t}
+```
+
+The effective Hamiltonian is:
+
+```math
+H_{\text{eff}} = H_0 + \Omega_2 + \Omega_3 + \ldots
+```
+
+### Circularly Driven Two-Level System
+
+A qubit driven by a circularly polarized field:
+
+```math
+H(t) = \frac{\Delta}{2}\sigma_z + \frac{\Omega}{2}\left(e^{i\omega t}\sigma^+ + e^{-i\omega t}\sigma^-\right)
+```
+
+```julia
+using UnitaryTransformations
+using QuantumAlgebra
+using Symbolics
+
+QuantumAlgebra.use_σpm(true)
+
+@variables Δ Ω ω
+
+# Fourier modes: H(t) = Σₙ Hₙ exp(inωt)
+modes = Dict(
+    0  => Δ/2 * σz(),
+    1  => Ω/2 * σp(),
+    -1 => Ω/2 * σm()
+)
+
+# Compute Magnus expansion to 4th order
+result = magnus_expansion(modes, ω; order=4)
+
+println("H_eff = ", result.H_eff)
+println("Ω₂ (Bloch-Siegert) = ", result.Ω2)
+println("Ω₃ = ", result.Ω3)
+```
+
+**Output (order 2):**
+```math
+\Omega_2 = -\frac{\Omega^2}{4\omega}\sigma_z
+```
+
+This is the **Bloch-Siegert shift** — a correction to the qubit frequency due to counter-rotating drive terms.
+
+### Higher-Order Corrections
+
+The Magnus expansion can be computed to arbitrary order:
+
+```julia
+# High-order expansion
+result = magnus_expansion(modes, ω; order=6)
+
+# Access individual orders
+println("Order 3: ", result.Ω3)  # ~ -ΔΩ²/(4ω²)
+println("Order 4: ", result.Ω4)  # ~ +Δ²Ω²/(4ω³)
+println("Order 5: ", result.Ω5)  # ~ -Δ³Ω²/(4ω⁴)
+```
+
+**Pattern:** For k ≥ 2, each order contributes:
+
+```math
+\Omega_k = (-1)^{k-1} \frac{\Delta^{k-2} \Omega^2}{4\omega^{k-1}} \sigma_z
+```
+
+This geometric series sums to the exact Bloch-Siegert result:
+
+```math
+H_{\text{eff}} = \frac{\Delta}{2}\left(1 - \frac{\Omega^2}{2\omega(\omega + \Delta)}\right)\sigma_z
+```
+
+### Multiple Driving Frequencies
+
+For Hamiltonians with multiple Fourier components:
+
+```julia
+@variables Δ Ω₁ Ω₂ ω
+
+# Bichromatic driving
+modes = Dict(
+    0  => Δ/2 * σz(),
+    1  => Ω₁/2 * σp(),
+    -1 => Ω₁/2 * σm(),
+    2  => Ω₂/2 * σp(),
+    -2 => Ω₂/2 * σm()
+)
+
+result = magnus_expansion(modes, ω; order=3)
+```
+
+### Hermiticity Check
+
+The Magnus expansion verifies that your Hamiltonian is Hermitian:
+
+```julia
+# This will check H₋ₙ = Hₙ† automatically
+result = magnus_expansion(modes, ω; check_hermitian=true)
+
+# Skip the check if you know what you're doing
+result = magnus_expansion(modes, ω; check_hermitian=false)
+```
+
+---
+
 ## Running the Examples
 
 Complete example files are in the `examples/` directory:
@@ -271,6 +383,7 @@ julia --project examples/jaynes_cummings_dispersive.jl
 julia --project examples/two_level_system.jl
 julia --project examples/rabi_bloch_siegert.jl
 julia --project examples/three_level_atom.jl
+julia --project examples/driven_qubit.jl  # Magnus expansion
 ```
 
 ---
@@ -281,3 +394,4 @@ julia --project examples/three_level_atom.jl
 2. **Use `to_latex(expr)`** to get a LaTeX string for any expression
 3. **Use `extract_coefficient(expr, op)`** to get specific parameters
 4. **Use `substitute_values(expr, Dict(...))`** for numerical evaluation
+5. **Use `result.Ω3`** to access individual Magnus orders (or `result.orders[3]`)
