@@ -35,13 +35,10 @@ println(result.H_P)  # -Δ/2 + (-g²/Δ) a†a  ← dispersive shift χ = -g²/�
 
 ## Transformations
 
-| Transformation | Purpose | Status |
-|----------------|---------|--------|
-| **Schrieffer-Wolff** | Block-diagonalize H, derive effective low-energy Hamiltonians | Implemented |
-| **Magnus Expansion** | Effective Hamiltonians for periodically driven (Floquet) systems | Implemented |
-| **Lang-Firsov** | Polaron transformation (electron-phonon coupling) | Planned |
-| **Bogoliubov** | Diagonalize quadratic bosonic Hamiltonians | Planned |
-| **Holstein-Primakoff** | Map spin operators to bosons | Planned |
+| Transformation | Purpose |
+|----------------|---------|
+| **Schrieffer-Wolff** | Block-diagonalize H, derive effective low-energy Hamiltonians |
+| **Magnus Expansion** | Effective Hamiltonians for periodically driven (Floquet) systems |
 
 ## Supported Systems
 
@@ -78,9 +75,8 @@ result = magnus_expansion(modes, ω; order=4)
 
 ## Documentation
 
-- [Tutorial](https://volkerkarle.github.io/UnitaryTransformations.jl/dev/tutorial/) — Step-by-step introduction
-- [Theory](https://volkerkarle.github.io/UnitaryTransformations.jl/dev/theory/) — Mathematical foundations
-- [Examples](https://volkerkarle.github.io/UnitaryTransformations.jl/dev/examples/) — Physics applications
+- [Schrieffer-Wolff](https://volkerkarle.github.io/UnitaryTransformations.jl/dev/schrieffer_wolff/) — Theory, tutorial, and examples
+- [Magnus Expansion](https://volkerkarle.github.io/UnitaryTransformations.jl/dev/magnus/) — Floquet systems and driven dynamics
 - [API Reference](https://volkerkarle.github.io/UnitaryTransformations.jl/dev/api/) — Function documentation
 
 ## Requirements

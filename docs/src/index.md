@@ -16,8 +16,6 @@ This package provides **symbolic implementations** that produce analytical expre
 |----------------|---------|---------------|
 | [**Schrieffer-Wolff**](@ref schrieffer_wolff) | Block-diagonalize Hamiltonians, derive effective low-energy theories | [Guide](@ref schrieffer_wolff) |
 | [**Magnus Expansion**](@ref magnus_expansion) | Effective Hamiltonians for periodically driven (Floquet) systems | [Guide](@ref magnus_expansion) |
-| **Lang-Firsov** | Eliminate linear electron-phonon coupling (polaron frame) | Planned |
-| **Bogoliubov** | Diagonalize quadratic bosonic Hamiltonians | Planned |
 
 ## Quick Start
 
