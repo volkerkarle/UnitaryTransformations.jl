@@ -519,6 +519,73 @@ H_num = substitute_values(result.H_P, Dict(:g => 0.1, :Δ => 1.0))
 # χ = -0.01, matching -g²/Δ
 ```
 
+### Tavis-Cummings: N Atoms in a Cavity
+
+The **Tavis-Cummings model** generalizes Jaynes-Cummings to ``N`` identical two-level atoms coupled to a single cavity mode:
+
+```math
+H = \omega_c a^\dagger a + \sum_i \frac{\varepsilon_i}{2}\sigma_z^{(i)} + \sum_i g_i (a^\dagger\sigma^{(i)}_- + a\sigma^{(i)}_+)
+```
+
+This model describes multi-qubit circuit QED systems and collective atom-light interactions.
+
+```julia
+using UnitaryTransformations
+using QuantumAlgebra
+using Symbolics
+
+QuantumAlgebra.use_σpm(true)
+
+# Sum index represents Σᵢ over N atoms
+i = QuantumAlgebra.sumindex(1)
+
+@variables ω_c Δ g  # cavity freq, detuning, coupling
+
+# Tavis-Cummings Hamiltonian
+# The sum index #₁ represents the sum over all atoms
+H = ω_c * a'()*a() + Δ/2 * σz(i) + g * (a'()*σm(i) + a()*σp(i))
+
+# Zero-photon subspace (dispersive regime)
+P = Subspace(a'()*a() => 0)
+
+result = schrieffer_wolff(H, P; order=2)
+show_result(result)
+```
+
+**Generator:**
+```math
+S = \frac{g}{\Delta - \omega_c} a^{\dagger} \sigma^{(i)}_{-} + \frac{-g}{\Delta - \omega_c} \sigma^{(i)}_{+} a
+```
+
+**Effective Hamiltonian:**
+```math
+H_{\text{eff}} = \omega_c a^\dagger a + \frac{\Delta}{2}\sum_i \sigma_z^{(i)} + \chi \, a^\dagger a \sum_i \sigma_z^{(i)} + \text{const.}
+```
+
+where ``\chi = g^2/(\Delta - \omega_c)`` is the dispersive shift per atom.
+
+#### Physical Interpretation
+
+The Tavis-Cummings effective Hamiltonian reveals collective effects:
+
+1. **Collective Lamb shift**: Cavity frequency shifts by ``-N\chi`` (``N`` atoms contribute)
+2. **AC Stark shift**: Each atom's frequency shifts by ``2\chi`` per photon
+3. **Dispersive coupling**: ``\chi \cdot a^\dagger a \cdot J_z`` where ``J_z = \sum_i \sigma_z^{(i)}/2``
+
+For ``N`` atoms, the vacuum Rabi splitting scales as ``g\sqrt{N}``, leading to enhanced dispersive effects. This is the foundation for:
+- Multi-qubit dispersive readout in circuit QED
+- Collective spin squeezing
+- Quantum non-demolition measurements of collective spin
+
+#### Numerical Example
+
+For ``N = 10`` atoms with ``\Delta = 1.0`` GHz, ``g = 0.1`` GHz:
+- Single-atom dispersive shift: ``\chi = g^2/\Delta = 10`` MHz
+- Collective Lamb shift: ``10 \times 10`` MHz = 100 MHz
+- AC Stark shift per atom: 20 MHz per photon
+
+---
+
 ### Two-Level System with Transverse Field
 
 A qubit in longitudinal and transverse magnetic fields:
