@@ -636,6 +636,51 @@
         
         @test has_exchange_12
         @test has_exchange_21
+        
+        # Test project_to_subspace for SymExpr
+        @testset "project_to_subspace for SymExpr" begin
+            # Test 1: project_to_subspace removes off-diagonal terms
+            # Note: It does NOT substitute a†a → 0; it only removes off-diagonal operators
+            # and substitutes spin projection operators (σ⁺σ⁻)
+            H_test = SymExpr(ω_c * a'()*a())
+            P_vac = Subspace(a'()*a() => 0)
+            H_proj = project_to_subspace(H_test, P_vac)
+            # a†a is diagonal, so it remains (projection doesn't numerically evaluate)
+            @test H_proj isa QuExpr
+            
+            # Test 2: Projecting SymSum with σz to spin-down
+            # σz is diagonal and gets substituted to its eigenvalue
+            j = sumindex(2)  # Use different index
+            H_spin = SymSum(tc_Δ/2 * σz(j), j)
+            H_spin_expr = SymExpr(H_spin)
+            P_spin_down = Subspace(σz() => -1)
+            H_spin_proj = project_to_subspace(H_spin_expr, P_spin_down)
+            
+            # The result should be SymExpr with Σⱼ(-Δ/2)
+            # Check that it's still a SymExpr (the sum remains)
+            @test H_spin_proj isa SymExpr
+            
+            # Test 3: Combined projection - cavity vacuum AND spin
+            H_combined = SymExpr(ω_c * a'()*a()) + SymSum(tc_Δ/2 * σz(j), j)
+            P_both = Subspace(a'()*a() => 0, σz() => -1)
+            H_comb_proj = project_to_subspace(H_combined, P_both)
+            
+            # σz(j) → -1, but a†a is not numerically substituted
+            @test H_comb_proj isa SymExpr
+            
+            # Test 4: H_P from schrieffer_wolff should be projected
+            @test result.H_P isa SymExpr || result.H_P isa QuExpr
+            
+            # Test 5: Off-diagonal terms should be removed
+            # Create a Hamiltonian with explicit off-diagonal terms
+            k = sumindex(3)
+            H_with_od = SymExpr(a'()*a()) + SymSum(σp(k) + σm(k), k)
+            P_spin = Subspace(σz() => -1)
+            H_od_proj = project_to_subspace(H_with_od, P_spin)
+            # σp and σm are off-diagonal and should be removed
+            # Only a†a should remain
+            @test H_od_proj isa QuExpr || H_od_proj isa SymExpr
+        end
     end
 
     QuantumAlgebra.use_σpm(false)

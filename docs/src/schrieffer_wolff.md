@@ -639,6 +639,39 @@ result = schrieffer_wolff(H, P; order=2)
 
 This approach is simpler for small N but doesn't scale to arbitrary N like `SymSum`.
 
+#### Projecting SymExpr to Subspace
+
+The `project_to_subspace` function works with `SymExpr`, allowing you to project the effective Hamiltonian onto the low-energy subspace:
+
+```julia
+# Full effective Hamiltonian (block-diagonal)
+result = schrieffer_wolff(H, P; order=2)
+H_eff = result.H_eff  # Contains terms for both P and Q sectors
+
+# Project to subspace P (removes off-diagonal terms, substitutes spin projections)
+H_P = project_to_subspace(H_eff, P)
+
+# Or use result.H_P directly (already projected)
+H_P = result.H_P
+```
+
+**What `project_to_subspace` does for SymExpr:**
+
+1. **Removes off-diagonal operators** — terms like ``\sigma^+``, ``\sigma^-`` that connect P and Q
+2. **Substitutes spin projections** — ``\sigma^+\sigma^-`` becomes 0 (spin-down) or 1 (spin-up)
+3. **Preserves symbolic sums** — ``\sum_i \sigma_z^{(i)}`` remains as a symbolic sum
+
+**Example:**
+```julia
+# Define subspace with both cavity and spin constraints
+P = Subspace(a'()*a() => 0, σz() => -1)
+
+# Project: σ⁺σ⁻ → 0 (for spin-down), off-diagonal terms removed
+H_P = project_to_subspace(result.H_eff, P)
+```
+
+**Note:** The projection substitutes spin operators but keeps bosonic operators like ``a^\dagger a`` symbolically (they are diagonal but not numerically evaluated). This allows the result to remain valid for any photon number within the subspace constraints.
+
 ---
 
 ### Two-Level System with Transverse Field

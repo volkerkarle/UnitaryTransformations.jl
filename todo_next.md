@@ -72,8 +72,6 @@ result = schrieffer_wolff(H, P; order=2)
 
 2. **H_d with SymSum terms**: When the diagonal Hamiltonian contains symbolic sums (e.g., `Σᵢ (Δ/2)σz(i)`), only the scalar (QuExpr) part is used for computing energy denominators. A warning is issued.
 
-3. **Project to subspace**: `project_to_subspace` is not yet implemented for SymExpr. The full H_eff is returned without projection.
-
 ## References
 
 - Tavis-Cummings example: `examples/tavis_cummings.jl`

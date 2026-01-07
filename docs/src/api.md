@@ -76,6 +76,29 @@ detect_lie_algebra_system
 project_to_subspace
 ```
 
+### Projection with Symbolic Sums
+
+The `project_to_subspace` function supports `SymExpr`, `SymSum`, and `SymProd` types for multi-atom systems:
+
+```julia
+using QuantumAlgebra, UnitaryTransformations
+import QuantumAlgebra: sumindex, SymSum, SymExpr
+
+i = sumindex(1)
+H_eff = SymExpr(ω_c * a'()*a()) + SymSum(Δ/2 * σz(i), i)
+
+P = Subspace(a'()*a() => 0, σz() => -1)
+H_P = project_to_subspace(H_eff, P)
+# σz(i) → -1 for spin-down subspace
+# Symbolic sums are preserved in the result
+```
+
+**Supported types:**
+- `QuExpr` — standard quantum expressions
+- `SymSum` — symbolic sums over site indices
+- `SymProd` — symbolic products over site indices  
+- `SymExpr` — combinations of the above
+
 ---
 
 ## BCH Expansion

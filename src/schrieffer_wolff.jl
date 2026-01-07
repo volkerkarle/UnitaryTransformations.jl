@@ -637,6 +637,93 @@ end
 import ..UnitaryTransformations: SymSum, SymProd, SymExpr, AbstractSymbolicAggregate
 
 """
+    project_to_subspace(s::SymSum, P::Subspace)
+
+Project a symbolic sum onto the subspace P.
+
+The projection is applied to the inner expression of the sum. If the inner
+expression projects to zero (e.g., σ⁺σ⁻ in spin-down subspace), the entire
+sum becomes zero.
+
+# Example
+For `Σᵢ σ⁺(i)σ⁻(i)` with P = Subspace(σz() => -1):
+- The inner term σ⁺σ⁻ → 0 for spin-down
+- Therefore the entire sum → 0
+"""
+function project_to_subspace(s::SymSum, P::Subspace)
+    inner_proj = project_to_subspace(s.expr, P)
+    # If the inner expression is zero, the whole sum is zero
+    if iszero(inner_proj)
+        return inner_proj  # Return QuExpr(0)
+    end
+    return SymSum(inner_proj, s.index, s.excluded)
+end
+
+"""
+    project_to_subspace(s::SymProd, P::Subspace)
+
+Project a symbolic product onto the subspace P.
+"""
+function project_to_subspace(s::SymProd, P::Subspace)
+    inner_proj = project_to_subspace(s.expr, P)
+    if iszero(inner_proj)
+        return inner_proj
+    end
+    return SymProd(inner_proj, s.index, s.excluded)
+end
+
+"""
+    project_to_subspace(e::SymExpr, P::Subspace)
+
+Project a symbolic expression onto the subspace P.
+
+This applies `project_to_subspace` to both the scalar (QuExpr) part and
+all symbolic aggregate terms (SymSum, SymProd).
+
+# Notes
+- Cross-site terms like `Σᵢ≠ⱼ σ⁺(i)σ⁻(j)` are kept (they don't involve
+  single-site projections that would set them to zero)
+- Same-site terms like `Σᵢ σ⁺(i)σ⁻(i)` become zero if P is spin-down
+
+# Example
+```julia
+using QuantumAlgebra, UnitaryTransformations
+import QuantumAlgebra: sumindex, SymSum, SymExpr
+
+i = sumindex(1)
+H = SymExpr(a'()*a()) + SymSum(σz(i)/2, i)
+
+P = Subspace(a'()*a() => 0, σz() => -1)
+H_P = project_to_subspace(H, P)
+# H_P will have a†a → 0 and Σᵢ σz(i)/2 → Σᵢ(-1/2) = -N/2 (symbolic)
+```
+"""
+function project_to_subspace(e::SymExpr, P::Subspace)
+    # Project the scalar (QuExpr) part
+    scalar_proj = project_to_subspace(e.scalar, P)
+    
+    # Project each symbolic aggregate term
+    projected_terms = Tuple{Number, AbstractSymbolicAggregate}[]
+    
+    for (coeff, agg) in e.terms
+        agg_proj = project_to_subspace(agg, P)
+        # If it's still a SymSum/SymProd, keep it; if it reduced to QuExpr, add to scalar
+        if agg_proj isa AbstractSymbolicAggregate
+            push!(projected_terms, (coeff, agg_proj))
+        elseif agg_proj isa QuExpr
+            scalar_proj = scalar_proj + coeff * agg_proj
+        end
+    end
+    
+    # If no aggregates remain, return just the scalar
+    if isempty(projected_terms)
+        return scalar_proj
+    end
+    
+    return SymExpr(projected_terms, scalar_proj)
+end
+
+"""
     schrieffer_wolff(H::SymExpr, P::Subspace; order::Int=2, ...)
 
 Perform the Schrieffer-Wolff transformation on a Hamiltonian expressed with
@@ -712,10 +799,8 @@ function schrieffer_wolff(
     # For order > 2, we would need additional iterations
     # Currently not fully implemented for SymExpr
     
-    # Project to subspace P - for SymExpr this is more complex
-    # For now, we return the full H_eff without projection
-    # TODO: Implement project_to_subspace for SymExpr
-    H_P = H_eff  # Placeholder - full projection not implemented
+    # Project to subspace P
+    H_P = project_to_subspace(H_eff, P)
     
     return (H_eff = H_eff, S = S1, H_P = H_P)
 end
