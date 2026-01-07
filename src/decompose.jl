@@ -396,20 +396,20 @@ Returns (SymExpr_d, SymExpr_od).
 function decompose(e::SymExpr, P::Subspace)
     # Decompose the scalar (QuExpr) part
     scalar_d, scalar_od = decompose(e.scalar, P)
-    
+
     # Decompose each symbolic aggregate term
-    terms_d = Tuple{Number, AbstractSymbolicAggregate}[]
-    terms_od = Tuple{Number, AbstractSymbolicAggregate}[]
-    
+    terms_d = Tuple{Number,AbstractSymbolicAggregate}[]
+    terms_od = Tuple{Number,AbstractSymbolicAggregate}[]
+
     for (coeff, agg) in e.terms
         agg_d, agg_od = decompose(agg, P)
         push!(terms_d, (coeff, agg_d))
         push!(terms_od, (coeff, agg_od))
     end
-    
+
     SymExpr_d = SymExpr(terms_d, scalar_d)
     SymExpr_od = SymExpr(terms_od, scalar_od)
-    
+
     return (SymExpr_d, SymExpr_od)
 end
 

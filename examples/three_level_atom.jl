@@ -184,11 +184,11 @@ Note: ε₁₃ = ω/2 + Δ·0.866 (combination of λ₇ and λ₈ eigenvalue dif
 
 # Construct generator explicitly
 # ε₁₃ = ω/2 + Δ·√3/2 for E₁₃ (based on Cartan eigenvalues)
-sqrt3_half = sqrt(3)/2
-ε_13_expr = ω/2 + Δ * sqrt3_half
-ε_31_expr = -(ω/2 + Δ * sqrt3_half)  # Opposite for lowering
-ε_23_expr = -ω/2 + Δ * sqrt3_half     # Different for E₂₃
-ε_32_expr = -(-ω/2 + Δ * sqrt3_half)  # Opposite for lowering
+sqrt3_half = sqrt(3) / 2
+ε_13_expr = ω / 2 + Δ * sqrt3_half
+ε_31_expr = -(ω / 2 + Δ * sqrt3_half)  # Opposite for lowering
+ε_23_expr = -ω / 2 + Δ * sqrt3_half     # Different for E₂₃
+ε_32_expr = -(-ω / 2 + Δ * sqrt3_half)  # Opposite for lowering
 
 S =
     g₁ * E13 / ε_13_expr +

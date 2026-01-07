@@ -282,7 +282,7 @@ function _generate_work_items(S::Vector{QuExpr}, V_od::Vector{QuExpr}, n::Int)
         # Part 1: Base operator is V (order 1)
         target_sum = n - 1
         if target_sum >= k
-            for comp in compositions(target_sum, k; min_val = 1, max_val = n-1)
+            for comp in compositions(target_sum, k; min_val = 1, max_val = n - 1)
                 if all(i -> isassigned(S, i), comp)
                     push!(work_items, WorkItem(comp, :V, bch_coeff, 0))
                 end
@@ -292,7 +292,7 @@ function _generate_work_items(S::Vector{QuExpr}, V_od::Vector{QuExpr}, n::Int)
         # Part 2: Base operator is H₀ (order 0)
         target_sum_H0 = n
         if target_sum_H0 >= k
-            for comp in compositions(target_sum_H0, k; min_val = 1, max_val = n-1)
+            for comp in compositions(target_sum_H0, k; min_val = 1, max_val = n - 1)
                 if all(i -> isassigned(S, i), comp)
                     inner_idx = comp[end]
                     if isassigned(V_od, inner_idx) && !isempty(V_od[inner_idx].terms)
@@ -701,10 +701,10 @@ H_P = project_to_subspace(H, P)
 function project_to_subspace(e::SymExpr, P::Subspace)
     # Project the scalar (QuExpr) part
     scalar_proj = project_to_subspace(e.scalar, P)
-    
+
     # Project each symbolic aggregate term
-    projected_terms = Tuple{Number, AbstractSymbolicAggregate}[]
-    
+    projected_terms = Tuple{Number,AbstractSymbolicAggregate}[]
+
     for (coeff, agg) in e.terms
         agg_proj = project_to_subspace(agg, P)
         # If it's still a SymSum/SymProd, keep it; if it reduced to QuExpr, add to scalar
@@ -714,12 +714,12 @@ function project_to_subspace(e::SymExpr, P::Subspace)
             scalar_proj = scalar_proj + coeff * agg_proj
         end
     end
-    
+
     # If no aggregates remain, return just the scalar
     if isempty(projected_terms)
         return scalar_proj
     end
-    
+
     return SymExpr(projected_terms, scalar_proj)
 end
 
@@ -775,33 +775,34 @@ function schrieffer_wolff(
     parallel::Bool = false,
 )
     order >= 2 || throw(ArgumentError("order must be at least 2, got $order"))
-    order == 2 || @warn "SymExpr input: only order=2 is fully supported. Higher orders may not include all cross-site contributions."
-    
+    order == 2 ||
+        @warn "SymExpr input: only order=2 is fully supported. Higher orders may not include all cross-site contributions."
+
     # Decompose H = H₀ (diagonal) + V (off-diagonal)
     H0, V = decompose(H, P)
-    
+
     # For order 2, we use the simplified algorithm:
     # H_eff = H₀ + (1/2)[S₁, V]
     # where [S₁, H₀] = -V
-    
+
     # Solve for the first-order generator
     S1 = solve_for_generator(H0, V, P)
-    
+
     # Compute the second-order correction: (1/2)[S₁, V]
     comm_S1_V = comm(S1, V)
-    
+
     # Extract the diagonal part of the second-order correction
     second_order_diag, _ = decompose(comm_S1_V, P)
-    
+
     # The effective Hamiltonian is H₀ + (1/2)[S₁, V]_diagonal
-    H_eff = H0 + (1//2) * second_order_diag
-    
+    H_eff = H0 + (1 // 2) * second_order_diag
+
     # For order > 2, we would need additional iterations
     # Currently not fully implemented for SymExpr
-    
+
     # Project to subspace P
     H_P = project_to_subspace(H_eff, P)
-    
+
     return (H_eff = H_eff, S = S1, H_P = H_P)
 end
 
@@ -810,11 +811,6 @@ end
 
 Convenience method: wrap a single SymSum in a SymExpr and call the main method.
 """
-function schrieffer_wolff(
-    H::SymSum,
-    P::Subspace;
-    order::Int = 2,
-    kwargs...
-)
-    return schrieffer_wolff(SymExpr(H), P; order=order, kwargs...)
+function schrieffer_wolff(H::SymSum, P::Subspace; order::Int = 2, kwargs...)
+    return schrieffer_wolff(SymExpr(H), P; order = order, kwargs...)
 end

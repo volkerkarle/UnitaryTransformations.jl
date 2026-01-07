@@ -508,8 +508,8 @@ References:
             σpm_coeff_Heff = extract_coefficient(result.H_eff, σp() * σm())
             # Sum: Δ - Ω²/(2ω) × [1 + Δ/ω - Δ²/ω² + Δ³/ω³ - Δ⁴/ω⁴]
             expected_total =
-                Δ - Ω^2/(2*ω) - Δ*Ω^2/(2*ω^2) + Δ^2*Ω^2/(2*ω^3) - Δ^3*Ω^2/(2*ω^4) +
-                Δ^4*Ω^2/(2*ω^5)
+                Δ - Ω^2 / (2 * ω) - Δ * Ω^2 / (2 * ω^2) + Δ^2 * Ω^2 / (2 * ω^3) -
+                Δ^3 * Ω^2 / (2 * ω^4) + Δ^4 * Ω^2 / (2 * ω^5)
             @test sym_equal(σpm_coeff_Heff, expected_total)
         end
 

@@ -69,10 +69,10 @@ i = sumindex(1)
 H_cav = ω_c * a'() * a()
 
 # H_atom = Σᵢ (Δ/2) σz(i)
-H_atom = SymSum(Δ/2 * σz(i), i)
+H_atom = SymSum(Δ / 2 * σz(i), i)
 
 # H_int = Σᵢ g(a†σ⁻(i) + aσ⁺(i))
-H_int = SymSum(g * (a'()*σm(i) + a()*σp(i)), i)
+H_int = SymSum(g * (a'() * σm(i) + a() * σp(i)), i)
 
 # Total Hamiltonian (SymExpr combining QuExpr and SymSum terms)
 H = SymExpr(H_cav) + H_atom + H_int
@@ -109,7 +109,7 @@ println("  V = ", V)
 # where we use [σz, σ±] = ±2σ± and [a†a, a] = -a, [a†a, a†] = a†
 
 # Construct the generator
-S1 = SymSum((g/Δ) * (a()*σp(i) - a'()*σm(i)), i)
+S1 = SymSum((g / Δ) * (a() * σp(i) - a'() * σm(i)), i)
 
 println("\nFirst-order generator:")
 println("  S₁ = ", S1)
@@ -119,7 +119,7 @@ println("  S₁ = ", S1)
 println("\nVerifying generator equation [S₁, H_d] = -V...")
 
 # Commutator with cavity part: [S₁, ω_c a†a]
-comm_cav = ω_c * comm(S1, a'()*a())
+comm_cav = ω_c * comm(S1, a'() * a())
 println("  [S₁, H_cav] = ", normal_form(comm_cav))
 
 # Commutator with atom part: [S₁, Σⱼ (Δ/2)σz(j)]
@@ -241,14 +241,14 @@ println("-"^60)
 @variables ω_c2 Δ2 g2
 
 H2_cav = ω_c2 * a'() * a()
-H2_atom = Δ2/2 * σz(1) + Δ2/2 * σz(2)
-H2_int = g2 * (a'()*σm(1) + a()*σp(1)) + g2 * (a'()*σm(2) + a()*σp(2))
+H2_atom = Δ2 / 2 * σz(1) + Δ2 / 2 * σz(2)
+H2_int = g2 * (a'() * σm(1) + a() * σp(1)) + g2 * (a'() * σm(2) + a() * σp(2))
 
 # Generator for two atoms
-S2 = (g2/Δ2) * (a()*σp(1) - a'()*σm(1)) + (g2/Δ2) * (a()*σp(2) - a'()*σm(2))
+S2 = (g2 / Δ2) * (a() * σp(1) - a'() * σm(1)) + (g2 / Δ2) * (a() * σp(2) - a'() * σm(2))
 
 # Compute (1/2)[S, V]
-half_comm = (1//2) * normal_form(comm(S2, H2_int))
+half_comm = (1 // 2) * normal_form(comm(S2, H2_int))
 
 println("For 2 atoms, (1/2)[S₁, V] gives:")
 for (term, coeff) in half_comm.terms
@@ -267,7 +267,7 @@ exchange_terms = []
 for (term, coeff) in half_comm.terms
     term_str = string(term)
     coeff_simp = coeff isa Symbolics.Num ? Symbolics.simplify(coeff) : coeff
-    
+
     if occursin("a†", term_str) && occursin("a()", term_str)
         push!(cavity_terms, (term, coeff_simp))
     elseif occursin("σ⁺", term_str) && occursin("σ⁻", term_str)

@@ -554,7 +554,7 @@ function solve_for_generator(H_d::QuExpr, V_od::SymSum, P::Subspace)
     # Solve for the generator of the inner expression
     # This gives S such that [S_inner, H_d] = -V_inner
     inner_S = solve_for_generator(H_d, V_od.expr, P)
-    
+
     # Wrap in the same sum structure
     return SymSum(inner_S, V_od.index, V_od.excluded)
 end
@@ -573,10 +573,10 @@ function solve_for_generator(H_d::QuExpr, V_od::SymExpr, P::Subspace)
     if !iszero(V_od.scalar)
         scalar_S = solve_for_generator(H_d, V_od.scalar, P)
     end
-    
+
     # Solve for each symbolic aggregate term
-    terms_S = Tuple{Number, AbstractSymbolicAggregate}[]
-    
+    terms_S = Tuple{Number,AbstractSymbolicAggregate}[]
+
     for (coeff, agg) in V_od.terms
         agg_S = solve_for_generator(H_d, agg, P)
         if agg_S isa AbstractSymbolicAggregate
@@ -586,7 +586,7 @@ function solve_for_generator(H_d::QuExpr, V_od::SymExpr, P::Subspace)
             scalar_S = normal_form(scalar_S + coeff * agg_S)
         end
     end
-    
+
     if isempty(terms_S)
         return scalar_S
     else

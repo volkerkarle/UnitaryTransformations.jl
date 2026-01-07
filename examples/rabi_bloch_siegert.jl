@@ -46,7 +46,7 @@ UnitaryTransformations.clear_param_cache!()
 #                       ^^^^^^^^^^^^     ^^^^^^^^^^^^
 #                       JC terms         Counter-rotating
 
-H_full = ω * a'() * a() + Δ/2 * σz() + g * (σp() + σm()) * (a() + a'())
+H_full = ω * a'() * a() + Δ / 2 * σz() + g * (σp() + σm()) * (a() + a'())
 
 println("\n1. FULL RABI HAMILTONIAN")
 println("-"^40)
@@ -55,7 +55,7 @@ println("\nExpanded:")
 println("H = ", normal_form(H_full))
 
 # For comparison, Jaynes-Cummings (RWA) Hamiltonian
-H_JC = ω * a'() * a() + Δ/2 * σz() + g * (a'()*σm() + a()*σp())
+H_JC = ω * a'() * a() + Δ / 2 * σz() + g * (a'() * σm() + a() * σp())
 
 println("\nJaynes-Cummings (RWA):")
 println("H_JC = ", H_JC)
@@ -108,8 +108,8 @@ end
 println("\n6. DISPERSIVE SHIFT COMPARISON")
 println("-"^40)
 
-χ_full = extract_coefficient(result_full.H_P, a'()*a())
-χ_JC = extract_coefficient(result_JC.H_P, a'()*a())
+χ_full = extract_coefficient(result_full.H_P, a'() * a())
+χ_JC = extract_coefficient(result_JC.H_P, a'() * a())
 
 println("Cavity frequency shift in ground state:")
 println("  Full Rabi: χ = ", χ_full)
@@ -158,7 +158,7 @@ g_val = 0.1
 ω_val = 5.0
 
 χ_JC_expected = -g_val^2 / Δ_val
-χ_CR_expected = -g_val^2 / (Δ_val + 2*ω_val)  # Counter-rotating contribution
+χ_CR_expected = -g_val^2 / (Δ_val + 2 * ω_val)  # Counter-rotating contribution
 χ_full_expected = χ_JC_expected + χ_CR_expected
 
 println("\nExpected dispersive shifts:")
@@ -169,7 +169,7 @@ println(
     "  Bloch-Siegert correction: ",
     χ_CR_expected,
     " (",
-    100*abs(χ_CR_expected/χ_JC_expected),
+    100 * abs(χ_CR_expected / χ_JC_expected),
     "% of JC)",
 )
 

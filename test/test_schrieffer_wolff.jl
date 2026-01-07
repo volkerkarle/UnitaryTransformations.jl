@@ -60,7 +60,7 @@
         # Simple Jaynes-Cummings-like Hamiltonian
         @variables ω Δ g
 
-        H = ω * a'() * a() + Δ/2 * σz() + g * (a()*σp() + a'()*σm())
+        H = ω * a'() * a() + Δ / 2 * σz() + g * (a() * σp() + a'() * σm())
 
         H_d, H_od = decompose(H, P)
 
@@ -81,14 +81,14 @@
         @variables Δ ε
 
         # σx = σ+ + σ-
-        H = Δ/2 * σz() + ε * (σp() + σm())
+        H = Δ / 2 * σz() + ε * (σp() + σm())
 
         P = Subspace(σz() => -1)
 
         # Just test decomposition for now
         H_d, H_od = decompose(H, P)
 
-        @test normal_form(H_d) == normal_form(Δ/2 * σz())
+        @test normal_form(H_d) == normal_form(Δ / 2 * σz())
         @test normal_form(H_od) == normal_form(ε * (σp() + σm()))
     end
 
@@ -101,7 +101,7 @@
 
         @variables Δ ε
 
-        H_d = Δ/2 * σz()
+        H_d = Δ / 2 * σz()
         V_od = ε * σp()
 
         P = Subspace(σz() => -1)
@@ -141,7 +141,7 @@
 
         @variables ω Δ g
 
-        H = ω * a'() * a() + Δ/2 * σz() + g * (a'()*σm() + a()*σp())
+        H = ω * a'() * a() + Δ / 2 * σz() + g * (a'() * σm() + a() * σp())
 
         P = Subspace(σz() => -1)
 
@@ -197,7 +197,7 @@
         end
 
         @variables Δ ε
-        H = Δ/2 * σz() + ε * (σp() + σm())
+        H = Δ / 2 * σz() + ε * (σp() + σm())
         P = Subspace(σz() => -1)
 
         H_d, V_od = decompose(H, P)
@@ -216,8 +216,8 @@
         Δ_val = 1.0
         ε_val = 0.1  # ε/Δ = 0.1, well in perturbative regime
 
-        E_exact = -sqrt(Δ_val^2/4 + ε_val^2)
-        E_SW = -Δ_val/2 - ε_val^2/Δ_val
+        E_exact = -sqrt(Δ_val^2 / 4 + ε_val^2)
+        E_SW = -Δ_val / 2 - ε_val^2 / Δ_val
 
         error_pct = 100 * abs(E_exact - E_SW) / abs(E_exact)
 
@@ -465,7 +465,7 @@
         H = H_d + V
 
         # Subspace: cavity vacuum
-        P = Subspace(a'()*a() => 0)
+        P = Subspace(a'() * a() => 0)
 
         # SW transformation
         result = schrieffer_wolff(H, P; order = 2)
@@ -497,7 +497,7 @@
             g₂ * (σ7[2, 4] * a'() + σ7[4, 2] * a())
 
         H = H_d + V
-        P = Subspace(a'()*a() => 0)
+        P = Subspace(a'() * a() => 0)
 
         # Decomposition should work
         H_diag, H_od = decompose(H, P)
@@ -577,53 +577,53 @@
     @testset "SymSum/SymExpr support for multi-atom systems" begin
         # Import SymSum types
         import QuantumAlgebra: sumindex, SymSum, SymExpr, expand_symbolic
-        
+
         @variables ω_c tc_Δ tc_g
-        
+
         # Create a sum index for the Tavis-Cummings model
         i = sumindex(1)
-        
+
         # Build Hamiltonian with symbolic sums
         H_cav = ω_c * a'() * a()
-        H_atom = SymSum(tc_Δ/2 * σz(i), i)
-        H_int = SymSum(tc_g * (a'()*σm(i) + a()*σp(i)), i)
-        
+        H_atom = SymSum(tc_Δ / 2 * σz(i), i)
+        H_int = SymSum(tc_g * (a'() * σm(i) + a() * σp(i)), i)
+
         H = SymExpr(H_cav) + H_atom + H_int
-        
+
         # Define subspace: zero photon sector
-        P = Subspace(a'()*a() => 0)
-        
+        P = Subspace(a'() * a() => 0)
+
         # Test decomposition with SymExpr
         H_d, H_od = decompose(H, P)
-        
+
         # The off-diagonal part should be the interaction term
         @test H_od isa SymExpr
-        
+
         # Test solve_for_generator with SymSum
         S = solve_for_generator(H_d, H_od, P)
         @test S isa SymExpr || S isa SymSum
-        
+
         # Test schrieffer_wolff with SymExpr
-        result = schrieffer_wolff(H, P; order=2)
-        
+        result = schrieffer_wolff(H, P; order = 2)
+
         @test result.H_eff isa SymExpr
         @test result.S isa SymExpr || result.S isa SymSum
-        
+
         # Test that exchange terms appear when we compute [S, V] for 2 atoms
         # Use the explicitly defined generator from the example
-        S1 = SymSum((tc_g/tc_Δ) * (a()*σp(i) - a'()*σm(i)), i)
-        
+        S1 = SymSum((tc_g / tc_Δ) * (a() * σp(i) - a'() * σm(i)), i)
+
         # Expand to 2 atoms
         S1_2 = expand_symbolic(S1, 1:2)
         H_int_2 = expand_symbolic(H_int, 1:2)
-        
+
         # Compute [S, V] for 2 atoms
         comm_SV = normal_form(comm(S1_2, H_int_2))
-        
+
         # Check for exchange terms: σ⁺(1)σ⁻(2) and σ⁺(2)σ⁻(1)
         has_exchange_12 = false
         has_exchange_21 = false
-        
+
         for (term, _) in comm_SV.terms
             term_str = string(term.bares)
             if occursin("σ⁺(1)", term_str) && occursin("σ⁻(2)", term_str)
@@ -633,48 +633,48 @@
                 has_exchange_21 = true
             end
         end
-        
+
         @test has_exchange_12
         @test has_exchange_21
-        
+
         # Test project_to_subspace for SymExpr
         @testset "project_to_subspace for SymExpr" begin
             # Test 1: project_to_subspace removes off-diagonal terms
             # Note: It does NOT substitute a†a → 0; it only removes off-diagonal operators
             # and substitutes spin projection operators (σ⁺σ⁻)
-            H_test = SymExpr(ω_c * a'()*a())
-            P_vac = Subspace(a'()*a() => 0)
+            H_test = SymExpr(ω_c * a'() * a())
+            P_vac = Subspace(a'() * a() => 0)
             H_proj = project_to_subspace(H_test, P_vac)
             # a†a is diagonal, so it remains (projection doesn't numerically evaluate)
             @test H_proj isa QuExpr
-            
+
             # Test 2: Projecting SymSum with σz to spin-down
             # σz is diagonal and gets substituted to its eigenvalue
             j = sumindex(2)  # Use different index
-            H_spin = SymSum(tc_Δ/2 * σz(j), j)
+            H_spin = SymSum(tc_Δ / 2 * σz(j), j)
             H_spin_expr = SymExpr(H_spin)
             P_spin_down = Subspace(σz() => -1)
             H_spin_proj = project_to_subspace(H_spin_expr, P_spin_down)
-            
+
             # The result should be SymExpr with Σⱼ(-Δ/2)
             # Check that it's still a SymExpr (the sum remains)
             @test H_spin_proj isa SymExpr
-            
+
             # Test 3: Combined projection - cavity vacuum AND spin
-            H_combined = SymExpr(ω_c * a'()*a()) + SymSum(tc_Δ/2 * σz(j), j)
-            P_both = Subspace(a'()*a() => 0, σz() => -1)
+            H_combined = SymExpr(ω_c * a'() * a()) + SymSum(tc_Δ / 2 * σz(j), j)
+            P_both = Subspace(a'() * a() => 0, σz() => -1)
             H_comb_proj = project_to_subspace(H_combined, P_both)
-            
+
             # σz(j) → -1, but a†a is not numerically substituted
             @test H_comb_proj isa SymExpr
-            
+
             # Test 4: H_P from schrieffer_wolff should be projected
             @test result.H_P isa SymExpr || result.H_P isa QuExpr
-            
+
             # Test 5: Off-diagonal terms should be removed
             # Create a Hamiltonian with explicit off-diagonal terms
             k = sumindex(3)
-            H_with_od = SymExpr(a'()*a()) + SymSum(σp(k) + σm(k), k)
+            H_with_od = SymExpr(a'() * a()) + SymSum(σp(k) + σm(k), k)
             P_spin = Subspace(σz() => -1)
             H_od_proj = project_to_subspace(H_with_od, P_spin)
             # σp and σm are off-diagonal and should be removed

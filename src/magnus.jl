@@ -348,7 +348,7 @@ function _compute_coefficient_general(indices, ω)
     # All partial sums are non-zero - compute coefficient
     product = prod(partial_sums[1:(k-1)])
 
-    return 1 / (ω^(k-1) * product)
+    return 1 / (ω^(k - 1) * product)
 end
 
 """

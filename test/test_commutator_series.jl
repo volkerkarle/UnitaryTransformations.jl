@@ -13,16 +13,16 @@
         @test normal_form(nested_commutator(a(), a'(), 1)) == one(QuExpr)
 
         # n=0 returns the original operator
-        @test nested_commutator(a(), a'()*a(), 0) == a'()*a()
+        @test nested_commutator(a(), a'() * a(), 0) == a'() * a()
 
         # [a, a†a] = a (number operator commutator)
-        @test normal_form(nested_commutator(a(), a'()*a(), 1)) == a()
+        @test normal_form(nested_commutator(a(), a'() * a(), 1)) == a()
 
         # [a†, a†a] = -a†
-        @test normal_form(nested_commutator(a'(), a'()*a(), 1)) == -a'()
+        @test normal_form(nested_commutator(a'(), a'() * a(), 1)) == -a'()
 
         # Double nested: [a, [a, a†a]] = [a, a] = 0
-        @test normal_form(nested_commutator(a(), a'()*a(), 2)) == zero(QuExpr)
+        @test normal_form(nested_commutator(a(), a'() * a(), 2)) == zero(QuExpr)
 
         # Triple nested with non-zero result
         # [a†, [a†, [a†, a]]] = [a†, [a†, -1]] = [a†, 0] = 0
@@ -34,11 +34,11 @@
 
     @testset "Multi-generator nested commutators" begin
         # Empty generators list returns the base operator
-        @test multi_nested_commutator(QuExpr[], a'()*a()) == a'()*a()
+        @test multi_nested_commutator(QuExpr[], a'() * a()) == a'() * a()
 
         # Single generator: [S, X]
         S1 = a()
-        X = a'()*a()
+        X = a'() * a()
         @test normal_form(multi_nested_commutator([S1], X)) == normal_form(comm(S1, X))
 
         # Two generators: [S1, [S2, X]]
@@ -50,7 +50,7 @@
         # Verify multi_nested_commutator matches nested_commutator for identical generators
         @variables α
         S = α * a()
-        H = a'()*a()
+        H = a'() * a()
         # [S, [S, H]] with same S should equal nested_commutator(S, H, 2)
         @test normal_form(multi_nested_commutator([S, S], H)) ==
               normal_form(nested_commutator(S, H, 2))
@@ -107,7 +107,7 @@
 
         # Order 1: H + [S,H] = a†a + ε*a
         result = commutator_series(S, H, 1)
-        expected = a'()*a() + ε*a()
+        expected = a'() * a() + ε * a()
         @test normal_form(result) == normal_form(expected)
 
         # Order 2: Same result since [a,[a,a†a]] = 0
@@ -149,7 +149,7 @@
         H = a'() * a()
 
         result = bch_transform(S, H; order = 4)
-        expected = a'()*a() - α*a'() - α*a() + α^2
+        expected = a'() * a() - α * a'() - α * a() + α^2
         @test normal_form(result) == normal_form(expected)
     end
 
@@ -176,7 +176,7 @@
 
         # Order 2: Z = A + B + (1/2)[A,B] = αa† + βa - (1/2)αβ
         Z2 = bch_combine(A, B; order = 2)
-        expected = α * a'() + β * a() - (1//2) * α * β
+        expected = α * a'() + β * a() - (1 // 2) * α * β
         @test normal_form(Z2) == normal_form(expected)
 
         # Order 3: Same as order 2 since higher commutators vanish
@@ -251,10 +251,10 @@
         QuantumAlgebra.use_σpm(true)
 
         # [σz, σ+] = 2σ+  (σ+ is eigenoperator of ad_σz)
-        @test normal_form(nested_commutator(σz(), σp(), 1)) == 2*σp()
+        @test normal_form(nested_commutator(σz(), σp(), 1)) == 2 * σp()
 
         # [σz, σ-] = -2σ-
-        @test normal_form(nested_commutator(σz(), σm(), 1)) == -2*σm()
+        @test normal_form(nested_commutator(σz(), σm(), 1)) == -2 * σm()
 
         # [σ+, σ-] = σz
         @test normal_form(nested_commutator(σp(), σm(), 1)) == σz()

@@ -19,12 +19,12 @@
         @test get_constraints(P)[1].eigenvalue == -1
 
         # Vacuum subspace
-        P = Subspace(a'()*a() => 0)
+        P = Subspace(a'() * a() => 0)
         @test length(get_constraints(P)) == 1
         @test get_constraints(P)[1].eigenvalue == 0
 
         # Product state: spin down AND vacuum
-        P = Subspace(σz() => -1, a'()*a() => 0)
+        P = Subspace(σz() => -1, a'() * a() => 0)
         @test length(get_constraints(P)) == 2
     end
 
@@ -35,7 +35,7 @@
         @test !is_number_constraint(c_spin)
 
         # Number constraint (bosonic)
-        c_num = OperatorConstraint(a'()*a(), 0)
+        c_num = OperatorConstraint(a'() * a(), 0)
         @test !is_spin_constraint(c_num)
         @test is_number_constraint(c_num)
     end
@@ -46,7 +46,7 @@
         @test length(get_constraints(P)) == 1
 
         # Multiple indexed modes
-        P = Subspace(σz(:i) => -1, a'(:k)*a(:k) => 0)
+        P = Subspace(σz(:i) => -1, a'(:k) * a(:k) => 0)
         @test length(get_constraints(P)) == 2
     end
 

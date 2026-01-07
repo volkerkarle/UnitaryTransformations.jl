@@ -32,7 +32,8 @@ println("="^60)
 # Actually: Ω cos(ωt) σx = Ω/2 (e^{iωt} + e^{-iωt}) σx
 # So H₁ = Ω/2 σx and H₋₁ = Ω/2 σx
 
-modes_linear = Dict(0 => Δ/2 * σz(), 1 => Ω/2 * (σp() + σm()), -1 => Ω/2 * (σp() + σm()))
+modes_linear =
+    Dict(0 => Δ / 2 * σz(), 1 => Ω / 2 * (σp() + σm()), -1 => Ω / 2 * (σp() + σm()))
 
 println("\nFourier modes:")
 println("  H₀ = Δ/2 σz")
@@ -56,7 +57,7 @@ println("Example 2: Circularly polarized drive")
 println("H(t) = Δ/2 σz + Ω(e^{iωt} σ⁺ + e^{-iωt} σ⁻)")
 println("="^60)
 
-modes_circular = Dict(0 => Δ/2 * σz(), 1 => Ω/2 * σp(), -1 => Ω/2 * σm())
+modes_circular = Dict(0 => Δ / 2 * σz(), 1 => Ω / 2 * σp(), -1 => Ω / 2 * σm())
 
 println("\nFourier modes:")
 println("  H₀ = Δ/2 σz")
@@ -90,11 +91,11 @@ println("="^60)
 σx_expr = σp() + σm()
 
 modes_bichromatic = Dict(
-    0 => Δ/2 * σz(),
-    1 => Ω₁/2 * σx_expr,
-    -1 => Ω₁/2 * σx_expr,
-    2 => Ω₂/2 * σx_expr,
-    -2 => Ω₂/2 * σx_expr,
+    0 => Δ / 2 * σz(),
+    1 => Ω₁ / 2 * σx_expr,
+    -1 => Ω₁ / 2 * σx_expr,
+    2 => Ω₂ / 2 * σx_expr,
+    -2 => Ω₂ / 2 * σx_expr,
 )
 
 println("\nFourier modes:")

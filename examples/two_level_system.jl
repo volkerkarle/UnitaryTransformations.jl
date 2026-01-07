@@ -44,7 +44,7 @@ UnitaryTransformations.clear_param_cache!()
 
 # Hamiltonian: H = Δ/2 σz + ε σx
 # In σpm basis: σx = σ⁺ + σ⁻
-H = Δ/2 * σz() + ε * (σp() + σm())
+H = Δ / 2 * σz() + ε * (σp() + σm())
 
 println("\n1. HAMILTONIAN")
 println("-"^40)
@@ -145,9 +145,9 @@ println("\nH_P(numerical) = ", H_P_num)
 Δ_val = 1.0
 ε_val = 0.1
 
-E_g_exact = -sqrt(Δ_val^2/4 + ε_val^2)
-E_g_SW_2nd = -Δ_val/2 - ε_val^2/Δ_val
-E_g_SW_4th = -Δ_val/2 - ε_val^2/Δ_val + ε_val^4/(2*Δ_val^3)
+E_g_exact = -sqrt(Δ_val^2 / 4 + ε_val^2)
+E_g_SW_2nd = -Δ_val / 2 - ε_val^2 / Δ_val
+E_g_SW_4th = -Δ_val / 2 - ε_val^2 / Δ_val + ε_val^4 / (2 * Δ_val^3)
 
 println("\nGround state energy:")
 println("  Exact:          E_g = ", E_g_exact)
@@ -155,14 +155,14 @@ println(
     "  SW (2nd order): E_g = ",
     E_g_SW_2nd,
     "  Error: ",
-    round(100*abs(E_g_exact - E_g_SW_2nd)/abs(E_g_exact), digits = 4),
+    round(100 * abs(E_g_exact - E_g_SW_2nd) / abs(E_g_exact), digits = 4),
     "%",
 )
 println(
     "  SW (4th order): E_g ≈ ",
     E_g_SW_4th,
     "  Error: ",
-    round(100*abs(E_g_exact - E_g_SW_4th)/abs(E_g_exact), digits = 4),
+    round(100 * abs(E_g_exact - E_g_SW_4th) / abs(E_g_exact), digits = 4),
     "%",
 )
 
@@ -175,11 +175,11 @@ println("  ε/Δ   | 2nd order error | 4th order error")
 println("  ------|-----------------|----------------")
 
 for ε_test in [0.1, 0.2, 0.3, 0.4, 0.5]
-    E_exact = -sqrt(Δ_val^2/4 + ε_test^2)
-    E_SW_2 = -Δ_val/2 - ε_test^2/Δ_val
-    E_SW_4 = -Δ_val/2 - ε_test^2/Δ_val + ε_test^4/(2*Δ_val^3)
-    err_2 = round(100*abs(E_exact - E_SW_2)/abs(E_exact), digits = 3)
-    err_4 = round(100*abs(E_exact - E_SW_4)/abs(E_exact), digits = 3)
+    E_exact = -sqrt(Δ_val^2 / 4 + ε_test^2)
+    E_SW_2 = -Δ_val / 2 - ε_test^2 / Δ_val
+    E_SW_4 = -Δ_val / 2 - ε_test^2 / Δ_val + ε_test^4 / (2 * Δ_val^3)
+    err_2 = round(100 * abs(E_exact - E_SW_2) / abs(E_exact), digits = 3)
+    err_4 = round(100 * abs(E_exact - E_SW_4) / abs(E_exact), digits = 3)
     println("  $(ε_test)   |     $(err_2)%      |     $(err_4)%")
 end
 

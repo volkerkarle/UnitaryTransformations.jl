@@ -50,7 +50,7 @@ UnitaryTransformations.clear_param_cache!()
 # H = Δ/2 σz + g(a†σ⁻ + a σ⁺)  (plus ω_c a†a which commutes with everything)
 # We work in units where the cavity frequency shifts are measured relative to ω_c
 
-H_int = Δ/2 * σz() + g * (a'()*σm() + a()*σp())
+H_int = Δ / 2 * σz() + g * (a'() * σm() + a() * σp())
 
 println("\n1. HAMILTONIAN")
 println("-"^40)
@@ -99,7 +99,7 @@ println("\n6. DISPERSIVE SHIFT")
 println("-"^40)
 
 # The a†a term gives the cavity frequency shift
-χ_cavity = extract_coefficient(result.H_eff, a'()*a())
+χ_cavity = extract_coefficient(result.H_eff, a'() * a())
 println("Cavity frequency shift (a†a coefficient): ", χ_cavity)
 
 # The a†σ⁺σ⁻a term contributes to state-dependent shifts
@@ -117,7 +117,7 @@ for (op, coeff) in terms_P
 end
 
 # The effective cavity frequency in the ground state
-ω_eff_g = extract_coefficient(result.H_P, a'()*a())
+ω_eff_g = extract_coefficient(result.H_P, a'() * a())
 println("\nEffective cavity frequency shift in |g⟩: ", ω_eff_g)
 
 # Expected result: -g²/Δ (negative because ground state)

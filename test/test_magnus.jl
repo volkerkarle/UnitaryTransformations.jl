@@ -8,12 +8,13 @@
 
         QuantumAlgebra.use_σpm(true)
 
-        modes = Dict(0 => Δ/2 * σz(), 1 => Ω/4 * (σp() + σm()), -1 => Ω/4 * (σp() + σm()))
+        modes =
+            Dict(0 => Δ / 2 * σz(), 1 => Ω / 4 * (σp() + σm()), -1 => Ω / 4 * (σp() + σm()))
 
         H = FourierHamiltonian(modes, ω)
 
-        @test H[0] == Δ/2 * σz()
-        @test H[1] == Ω/4 * (σp() + σm())
+        @test H[0] == Δ / 2 * σz()
+        @test H[1] == Ω / 4 * (σp() + σm())
         @test H[2] == zero(QuExpr)  # Non-existent mode
         @test haskey(H, 0)
         @test haskey(H, 1)
@@ -29,12 +30,12 @@
 
         # Hermitian case: H₋ₙ = Hₙ† for σx = σ⁺ + σ⁻ (self-adjoint)
         modes_hermitian =
-            Dict(0 => Δ/2 * σz(), 1 => Ω/4 * (σp() + σm()), -1 => Ω/4 * (σp() + σm()))
+            Dict(0 => Δ / 2 * σz(), 1 => Ω / 4 * (σp() + σm()), -1 => Ω / 4 * (σp() + σm()))
         @test check_hermiticity(modes_hermitian) == true
 
         # Non-Hermitian case: H₁ ≠ H₋₁†
         modes_non_hermitian = Dict(
-            0 => Δ/2 * σz(),
+            0 => Δ / 2 * σz(),
             1 => Ω * σp(),
             -1 => Ω * σp(),  # Should be σm() for Hermiticity
         )
@@ -43,7 +44,7 @@
 
         # Correct non-Hermitian fixed
         modes_fixed = Dict(
-            0 => Δ/2 * σz(),
+            0 => Δ / 2 * σz(),
             1 => Ω * σp(),
             -1 => Ω * σm(),  # Now H₋₁ = H₁†
         )
@@ -58,13 +59,14 @@
         QuantumAlgebra.use_σpm(true)
 
         # H(t) = Δ/2 σz + Ω cos(ωt) σx
-        modes = Dict(0 => Δ/2 * σz(), 1 => Ω/4 * (σp() + σm()), -1 => Ω/4 * (σp() + σm()))
+        modes =
+            Dict(0 => Δ / 2 * σz(), 1 => Ω / 4 * (σp() + σm()), -1 => Ω / 4 * (σp() + σm()))
 
         result = magnus_expansion(modes, ω; order = 1)
 
         # Order 1 is just the time average = H₀
-        @test normal_form(result.H_eff) == normal_form(Δ/2 * σz())
-        @test normal_form(result.Ω1) == normal_form(Δ/2 * σz())
+        @test normal_form(result.H_eff) == normal_form(Δ / 2 * σz())
+        @test normal_form(result.Ω1) == normal_form(Δ / 2 * σz())
         @test result.Ω2 == zero(QuExpr)
 
         QuantumAlgebra.use_σpm(false)
@@ -79,7 +81,8 @@
         # cos(ωt) = (e^{iωt} + e^{-iωt})/2
         # So H₁ = H₋₁ = Ω/2 × σx/2 = Ω/4 (σ⁺ + σ⁻)
 
-        modes = Dict(0 => Δ/2 * σz(), 1 => Ω/4 * (σp() + σm()), -1 => Ω/4 * (σp() + σm()))
+        modes =
+            Dict(0 => Δ / 2 * σz(), 1 => Ω / 4 * (σp() + σm()), -1 => Ω / 4 * (σp() + σm()))
 
         result = magnus_expansion(modes, ω; order = 2)
 
@@ -91,7 +94,7 @@
         @test result.Ω2 == zero(QuExpr)
 
         # H_eff should just be H₀
-        @test normal_form(result.H_eff) == normal_form(Δ/2 * σz())
+        @test normal_form(result.H_eff) == normal_form(Δ / 2 * σz())
 
         QuantumAlgebra.use_σpm(false)
     end
@@ -104,7 +107,7 @@
         # Circularly polarized drive: H₁ = Ω σ⁺, H₋₁ = Ω σ⁻
         # This has non-zero [H₁, H₋₁] = Ω² [σ⁺, σ⁻] = Ω² σz
 
-        modes = Dict(0 => Δ/2 * σz(), 1 => Ω/2 * σp(), -1 => Ω/2 * σm())
+        modes = Dict(0 => Δ / 2 * σz(), 1 => Ω / 2 * σp(), -1 => Ω / 2 * σm())
 
         result = magnus_expansion(modes, ω; order = 2)
 
@@ -140,8 +143,11 @@
         # H₀ = ω_c a†a
         # H₁ = H₋₁ = Ω/2 (a + a†)
 
-        modes =
-            Dict(0 => ω_c * a'() * a(), 1 => Ω/2 * (a() + a'()), -1 => Ω/2 * (a() + a'()))
+        modes = Dict(
+            0 => ω_c * a'() * a(),
+            1 => Ω / 2 * (a() + a'()),
+            -1 => Ω / 2 * (a() + a'()),
+        )
 
         result = magnus_expansion(modes, ω; order = 2)
 
@@ -160,7 +166,7 @@
         # For third order, we need modes where n + m + k = 0
         # With modes 0, 1, -1: possible combinations are (1, -1, 0), (0, 1, -1), etc.
 
-        modes = Dict(0 => Δ/2 * σz(), 1 => Ω/2 * σp(), -1 => Ω/2 * σm())
+        modes = Dict(0 => Δ / 2 * σz(), 1 => Ω / 2 * σp(), -1 => Ω / 2 * σm())
 
         result = magnus_expansion(modes, ω; order = 3)
 
@@ -183,11 +189,11 @@
         σx_expr = σp() + σm()
 
         modes = Dict(
-            0 => Δ/2 * σz(),
-            1 => Ω₁/4 * σx_expr,
-            -1 => Ω₁/4 * σx_expr,
-            2 => Ω₂/4 * σx_expr,
-            -2 => Ω₂/4 * σx_expr,
+            0 => Δ / 2 * σz(),
+            1 => Ω₁ / 4 * σx_expr,
+            -1 => Ω₁ / 4 * σx_expr,
+            2 => Ω₂ / 4 * σx_expr,
+            -2 => Ω₂ / 4 * σx_expr,
         )
 
         result = magnus_expansion(modes, ω; order = 2)
@@ -207,7 +213,7 @@
 
         QuantumAlgebra.use_σpm(true)
 
-        modes = Dict(0 => Δ/2 * σz(), 1 => Ω/2 * σp(), -1 => Ω/2 * σm())
+        modes = Dict(0 => Δ / 2 * σz(), 1 => Ω / 2 * σp(), -1 => Ω / 2 * σm())
 
         H = FourierHamiltonian(modes, ω)
 
@@ -227,7 +233,7 @@
         QuantumAlgebra.use_σpm(true)
 
         # Test that order=0 is rejected
-        modes = Dict(0 => Δ/2 * σz())
+        modes = Dict(0 => Δ / 2 * σz())
         @test_throws ArgumentError magnus_expansion(modes, ω; order = 0)
 
         # Test that a static Hamiltonian (only mode 0) works correctly
@@ -237,7 +243,7 @@
         @test result.Ω3 == zero(QuExpr)
 
         # Test that non-Hermitian modes throw an error
-        non_hermitian = Dict(0 => Δ/2 * σz(), 1 => Ω * σp())  # Missing mode -1
+        non_hermitian = Dict(0 => Δ / 2 * σz(), 1 => Ω * σp())  # Missing mode -1
         @test_throws ArgumentError magnus_expansion(non_hermitian, ω; order = 2)
 
         QuantumAlgebra.use_σpm(false)
