@@ -91,11 +91,11 @@ function figure1_two_level_system(; save_path = nothing)
     # Order 4: H_P = -Δ/2 - g²/Δ + g⁴/Δ³
     # Order 6: H_P = -Δ/2 - g²/Δ + g⁴/Δ³ - 2g⁶/Δ⁵
     # Order 8: H_P = -Δ/2 - g²/Δ + g⁴/Δ³ - 2g⁶/Δ⁵ + 5g⁸/Δ⁷
-    E_exact = [-sqrt(Δ^2/4 + g^2) for g in g_range]
-    E_SW2 = [-Δ/2 - g^2/Δ for g in g_range]
-    E_SW4 = [-Δ/2 - g^2/Δ + g^4/Δ^3 for g in g_range]
-    E_SW6 = [-Δ/2 - g^2/Δ + g^4/Δ^3 - 2*g^6/Δ^5 for g in g_range]
-    E_SW8 = [-Δ/2 - g^2/Δ + g^4/Δ^3 - 2*g^6/Δ^5 + 5*g^8/Δ^7 for g in g_range]
+    E_exact = [-sqrt(Δ^2 / 4 + g^2) for g in g_range]
+    E_SW2 = [-Δ / 2 - g^2 / Δ for g in g_range]
+    E_SW4 = [-Δ / 2 - g^2 / Δ + g^4 / Δ^3 for g in g_range]
+    E_SW6 = [-Δ / 2 - g^2 / Δ + g^4 / Δ^3 - 2 * g^6 / Δ^5 for g in g_range]
+    E_SW8 = [-Δ / 2 - g^2 / Δ + g^4 / Δ^3 - 2 * g^6 / Δ^5 + 5 * g^8 / Δ^7 for g in g_range]
 
     fig = Figure(size = (700, 500))
 
@@ -214,13 +214,13 @@ function figure2_jaynes_cummings(; save_path = nothing)
     # Dispersive shift: χ = -g²/Δ + higher order corrections
     # At order 2: χ₂ = -g²/Δ
     # At order 4: χ₄ = -g²/Δ + O(g⁴) corrections
-    χ_SW2 = [-g^2/Δ for g in g_range]
+    χ_SW2 = [-g^2 / Δ for g in g_range]
     # From the SW result, the order-4 correction modifies the a†a coefficient
-    χ_SW4 = [-g^2/Δ + 4*g^4/(3*Δ^3) for g in g_range]
+    χ_SW4 = [-g^2 / Δ + 4 * g^4 / (3 * Δ^3) for g in g_range]
 
     # Kerr coefficient K (coefficient of a†²a²)
     # Only appears at order 4: K = 4g⁴/(3Δ³)
-    K_SW4 = [4*g^4/(3*Δ^3) for g in g_range]
+    K_SW4 = [4 * g^4 / (3 * Δ^3) for g in g_range]
 
     fig = Figure(size = (900, 400))
 
@@ -326,7 +326,7 @@ function figure3_convergence(; save_path = nothing)
     )
 
     for (i, g) in enumerate(g_values)
-        E_exact = -sqrt(Δ^2/4 + g^2)
+        E_exact = -sqrt(Δ^2 / 4 + g^2)
 
         errors = Float64[]
         for n in orders
@@ -375,7 +375,7 @@ Order 8: H_P = -Δ/2 - g²/Δ + g⁴/Δ³ - 2g⁶/Δ⁵ + 5g⁸/Δ⁷
 Order 10: H_P = -Δ/2 - g²/Δ + g⁴/Δ³ - 2g⁶/Δ⁵ + 5g⁸/Δ⁷ - 14g¹⁰/Δ⁹
 """
 function compute_two_level_energy(Δ::Float64, g::Float64, order::Int)
-    E = -Δ/2
+    E = -Δ / 2
 
     if order >= 2
         E -= g^2 / Δ
@@ -384,13 +384,13 @@ function compute_two_level_energy(Δ::Float64, g::Float64, order::Int)
         E += g^4 / Δ^3
     end
     if order >= 6
-        E -= 2*g^6 / Δ^5
+        E -= 2 * g^6 / Δ^5
     end
     if order >= 8
-        E += 5*g^8 / Δ^7
+        E += 5 * g^8 / Δ^7
     end
     if order >= 10
-        E -= 14*g^10 / Δ^9
+        E -= 14 * g^10 / Δ^9
     end
 
     return E
@@ -408,10 +408,10 @@ function figure4_rabi_bloch_siegert(; save_path = nothing)
     g_range = range(0, 0.5, length = 100)
 
     # JC (RWA) dispersive shift: χ_JC = -g²/Δ
-    χ_JC = [-g^2/Δ for g in g_range]
+    χ_JC = [-g^2 / Δ for g in g_range]
 
     # Counter-rotating contribution: χ_CR = -g²/(Δ + 2ω)
-    χ_CR = [-g^2/(Δ + 2*ω) for g in g_range]
+    χ_CR = [-g^2 / (Δ + 2 * ω) for g in g_range]
 
     # Full Rabi (approximate): χ_full ≈ χ_JC + χ_CR
     χ_full = χ_JC .+ χ_CR
@@ -471,7 +471,7 @@ function figure4_rabi_bloch_siegert(; save_path = nothing)
     lines!(ax2, g_range[2:end], bs_percent[2:end], color = COLORS[3], linewidth = 2)
 
     # For our parameters: BS shift is Δ/(Δ+2ω) = 1/11 ≈ 9.1%
-    hlines!(ax2, [100*Δ/(Δ + 2*ω)], color = :gray, linestyle = :dash)
+    hlines!(ax2, [100 * Δ / (Δ + 2 * ω)], color = :gray, linestyle = :dash)
 
     if save_path !== nothing
         save(save_path, fig, px_per_unit = 3)
@@ -501,16 +501,17 @@ function figure5_combined_summary(; save_path = nothing)
     )
 
     g_range = range(0, 1.0, length = 100)
-    E_g_exact = [-sqrt(Δ^2/4 + g^2) for g in g_range]
-    E_e_exact = [sqrt(Δ^2/4 + g^2) for g in g_range]
-    E_g_SW2 = [-Δ/2 - g^2/Δ for g in g_range]
-    E_e_SW2 = [Δ/2 + g^2/Δ for g in g_range]
-    E_g_SW4 = [-Δ/2 - g^2/Δ + g^4/Δ^3 for g in g_range]
-    E_e_SW4 = [Δ/2 + g^2/Δ - g^4/Δ^3 for g in g_range]
-    E_g_SW6 = [-Δ/2 - g^2/Δ + g^4/Δ^3 - 2*g^6/Δ^5 for g in g_range]
-    E_e_SW6 = [Δ/2 + g^2/Δ - g^4/Δ^3 + 2*g^6/Δ^5 for g in g_range]
-    E_g_SW8 = [-Δ/2 - g^2/Δ + g^4/Δ^3 - 2*g^6/Δ^5 + 5*g^8/Δ^7 for g in g_range]
-    E_e_SW8 = [Δ/2 + g^2/Δ - g^4/Δ^3 + 2*g^6/Δ^5 - 5*g^8/Δ^7 for g in g_range]
+    E_g_exact = [-sqrt(Δ^2 / 4 + g^2) for g in g_range]
+    E_e_exact = [sqrt(Δ^2 / 4 + g^2) for g in g_range]
+    E_g_SW2 = [-Δ / 2 - g^2 / Δ for g in g_range]
+    E_e_SW2 = [Δ / 2 + g^2 / Δ for g in g_range]
+    E_g_SW4 = [-Δ / 2 - g^2 / Δ + g^4 / Δ^3 for g in g_range]
+    E_e_SW4 = [Δ / 2 + g^2 / Δ - g^4 / Δ^3 for g in g_range]
+    E_g_SW6 = [-Δ / 2 - g^2 / Δ + g^4 / Δ^3 - 2 * g^6 / Δ^5 for g in g_range]
+    E_e_SW6 = [Δ / 2 + g^2 / Δ - g^4 / Δ^3 + 2 * g^6 / Δ^5 for g in g_range]
+    E_g_SW8 =
+        [-Δ / 2 - g^2 / Δ + g^4 / Δ^3 - 2 * g^6 / Δ^5 + 5 * g^8 / Δ^7 for g in g_range]
+    E_e_SW8 = [Δ / 2 + g^2 / Δ - g^4 / Δ^3 + 2 * g^6 / Δ^5 - 5 * g^8 / Δ^7 for g in g_range]
 
     lines!(ax1, g_range, E_g_exact, color = :black, linewidth = 2.5, label = "Exact")
     lines!(ax1, g_range, E_e_exact, color = :black, linewidth = 2.5)
@@ -640,9 +641,9 @@ function figure5_combined_summary(; save_path = nothing)
     )
 
     g_range_jc = range(0, 0.4, length = 80)
-    χ_SW2 = [-g^2/Δ for g in g_range_jc]
-    χ_SW4 = [-g^2/Δ + 4*g^4/(3*Δ^3) for g in g_range_jc]
-    K_SW4 = [4*g^4/(3*Δ^3) for g in g_range_jc]
+    χ_SW2 = [-g^2 / Δ for g in g_range_jc]
+    χ_SW4 = [-g^2 / Δ + 4 * g^4 / (3 * Δ^3) for g in g_range_jc]
+    K_SW4 = [4 * g^4 / (3 * Δ^3) for g in g_range_jc]
 
     lines!(
         ax4,
