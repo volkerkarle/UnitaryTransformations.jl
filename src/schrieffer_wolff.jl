@@ -9,10 +9,12 @@ export schrieffer_wolff, sw_generator, project_to_subspace
 
 using QuantumAlgebra
 using QuantumAlgebra:
-    QuExpr, QuTerm, BaseOperator, BaseOpProduct, TLSCreate_, TLSDestroy_, normal_form, comm
+    QuExpr, QuTerm, BaseOperator, BaseOpProduct, TLSCreate_, TLSDestroy_, Transition_, normal_form, comm
 
 import ..UnitaryTransformations:
-    get_spin_constraint_info, simplify_coefficients, multi_nested_commutator, compositions
+    get_spin_constraint_info, get_transition_constraint_info, get_transition_indices,
+    is_number_constraint,
+    simplify_coefficients, multi_nested_commutator, compositions
 
 using Symbolics: Num, expand
 
@@ -472,12 +474,133 @@ function project_to_subspace(H::QuExpr, P::Subspace)
             continue
         end
 
+        # Check if this is a transition operator constraint (N-level system projector)
+        trans_info = get_transition_constraint_info(constraint)
+        if trans_info !== nothing
+            result = substitute_transition_projections(result, trans_info)
+            continue
+        end
+
+        # Check if this is a number operator constraint (a†a => n)
+        if is_number_constraint(constraint)
+            result = substitute_number_operator_projection(result, constraint)
+            continue
+        end
+
         # For other constraints, try direct substitution
         result = substitute_operator_eigenvalue(
             result,
             constraint.operator,
             constraint.eigenvalue,
         )
+    end
+
+    return normal_form(result)
+end
+
+"""
+    substitute_number_operator_projection(H::QuExpr, constraint::OperatorConstraint)
+
+Substitute boson/fermion operators for a number operator constraint a†a => n.
+
+For n = 0 (vacuum):
+- a†a → 0
+- Any term containing a or a† vanishes (they take us out of vacuum)
+
+For n > 0:
+- a†a → n
+- Terms with unbalanced a†/a are removed by diagonal_part already
+"""
+function substitute_number_operator_projection(H::QuExpr, constraint::OperatorConstraint)
+    n = constraint.eigenvalue
+    
+    # Extract the operator info from the constraint
+    op_term = first(constraint.operator.terms)[1]
+    ops = op_term.bares.v
+    # For a†a, ops[1] is creation, ops[2] is annihilation
+    op_name = ops[1].name
+    op_inds = ops[1].inds
+    is_boson = ops[1].t == BosonCreate_
+    create_type = is_boson ? BosonCreate_ : FermionCreate_
+    destroy_type = is_boson ? BosonDestroy_ : FermionDestroy_
+    
+    result = QuExpr()
+
+    for (term, coeff) in H.terms
+        term_ops = term.bares.v
+        new_ops = BaseOperator[]
+        eigenvalue_factor = 1
+        term_vanishes = false
+        i = 1
+
+        while i <= length(term_ops)
+            op = term_ops[i]
+            
+            # Check if this operator matches our constraint
+            if op.name == op_name && op.inds == op_inds
+                if op.t == create_type || op.t == destroy_type
+                    if n == 0
+                        # In vacuum, any a or a† kills the term
+                        term_vanishes = true
+                        break
+                    else
+                        # For n > 0, keep the operator (balanced terms survive)
+                        push!(new_ops, op)
+                    end
+                elseif i < length(term_ops)
+                    # Check for a†a pattern
+                    next_op = term_ops[i+1]
+                    if op.t == create_type && 
+                       next_op.t == destroy_type &&
+                       next_op.name == op_name && 
+                       next_op.inds == op_inds
+                        # Found a†a - replace with eigenvalue n
+                        eigenvalue_factor *= n
+                        i += 2
+                        continue
+                    else
+                        push!(new_ops, op)
+                    end
+                else
+                    push!(new_ops, op)
+                end
+            else
+                push!(new_ops, op)
+            end
+            i += 1
+        end
+
+        if term_vanishes
+            continue
+        end
+
+        # Build the new term
+        if isempty(new_ops)
+            new_term = QuTerm(
+                term.nsuminds,
+                term.δs,
+                term.params,
+                term.expvals,
+                term.corrs,
+                BaseOpProduct(),
+            )
+        else
+            new_term = QuTerm(
+                term.nsuminds,
+                term.δs,
+                term.params,
+                term.expvals,
+                term.corrs,
+                BaseOpProduct(new_ops),
+            )
+        end
+        
+        # If eigenvalue factor is 0, skip the term
+        if eigenvalue_factor == 0
+            continue
+        end
+        
+        result = result + coeff * eigenvalue_factor * QuExpr(new_term)
     end
 
     return normal_form(result)
@@ -524,6 +647,108 @@ function substitute_spin_projection(H::QuExpr, spin_name, spin_inds, pm_eigenval
 
         if isempty(new_ops)
             # The term was just operators that got substituted
+            new_term = QuTerm(
+                term.nsuminds,
+                term.δs,
+                term.params,
+                term.expvals,
+                term.corrs,
+                BaseOpProduct(),
+            )
+        else
+            new_term = QuTerm(
+                term.nsuminds,
+                term.δs,
+                term.params,
+                term.expvals,
+                term.corrs,
+                BaseOpProduct(new_ops),
+            )
+        end
+        result = result + coeff * eigenvalue_factor * QuExpr(new_term)
+    end
+
+    return normal_form(result)
+end
+
+"""
+    substitute_transition_projections(H::QuExpr, trans_info::NamedTuple)
+
+Substitute transition operators by their expectation values for N-level systems.
+
+For a constraint on projector |k⟩⟨k| with eigenvalue 1 (we ARE in state k):
+- |k⟩⟨k| → 1 (the constrained projector)
+- |m⟩⟨m| for m ≠ k → 0 (orthogonal projectors)
+- |i⟩⟨j| where neither i nor j is k → 0 (off-diagonal, ⟨k|i⟩⟨j|k⟩ = 0)
+- |k⟩⟨m| or |m⟩⟨k| for m ≠ k → 0 (these are off-diagonal in the projected subspace)
+
+For eigenvalue 0 (we are NOT in state k):
+- |k⟩⟨k| → 0
+
+trans_info contains: name, inds, N, state (the constrained state k), eigenvalue
+"""
+function substitute_transition_projections(H::QuExpr, trans_info::NamedTuple)
+    result = QuExpr()
+    
+    constrained_state = trans_info.state
+    eigenvalue = trans_info.eigenvalue
+    op_name = trans_info.name
+    op_inds = trans_info.inds
+    N = trans_info.N
+
+    for (term, coeff) in H.terms
+        ops = term.bares.v
+        new_ops = BaseOperator[]
+        eigenvalue_factor = 1
+        term_vanishes = false
+
+        for op in ops
+            # Check if this is a transition operator with matching name/inds
+            if op.t == Transition_ && op.name == op_name && op.inds == op_inds
+                indices = get_transition_indices(op)
+                if indices !== nothing
+                    i, j = indices
+                    
+                    if eigenvalue == 1
+                        # We ARE in state `constrained_state` (call it k)
+                        # Projection: P = |k⟩⟨k|
+                        # P |i⟩⟨j| P = |k⟩⟨k|i⟩⟨j|k⟩⟨k| = δ_{ki} δ_{jk} |k⟩⟨k|
+                        # So only |k⟩⟨k| survives, and it becomes the identity in the subspace
+                        
+                        if i == constrained_state && j == constrained_state
+                            # |k⟩⟨k| → 1 (identity in the projected subspace)
+                            eigenvalue_factor *= 1
+                            # Don't push the operator - it's replaced by 1
+                        else
+                            # Any other transition operator gives 0
+                            term_vanishes = true
+                            break
+                        end
+                    else  # eigenvalue == 0
+                        # We are NOT in state `constrained_state`
+                        if i == constrained_state && j == constrained_state
+                            # |k⟩⟨k| → 0
+                            term_vanishes = true
+                            break
+                        else
+                            # Other operators stay (we don't know exactly which state we're in)
+                            push!(new_ops, op)
+                        end
+                    end
+                    continue
+                end
+            end
+            # Non-matching operator: keep it
+            push!(new_ops, op)
+        end
+
+        # Skip term if it vanishes
+        if term_vanishes
+            continue
+        end
+
+        # Build the new term
+        if isempty(new_ops)
             new_term = QuTerm(
                 term.nsuminds,
                 term.δs,

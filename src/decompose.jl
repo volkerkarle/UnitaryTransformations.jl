@@ -26,6 +26,7 @@ using QuantumAlgebra:
     FermionCreate_,
     FermionDestroy_,
     LieAlgebraGen_,
+    Transition_,
     SU2_ALGEBRA_ID,
     SU3_ALGEBRA_ID,
     normal_form,
@@ -39,7 +40,11 @@ import ..UnitaryTransformations:
     get_lie_algebra_constraint_info,
     is_diagonal_lie_generator,
     is_off_diagonal_lie_generator,
-    get_lie_generator_state_info
+    get_lie_generator_state_info,
+    is_transition_constraint,
+    get_transition_constraint_info,
+    is_diagonal_transition,
+    get_transition_indices
 
 """
     OperatorClass
@@ -130,6 +135,17 @@ function classify_base_operator(op::BaseOperator, P::Subspace)
                 end
             end
         end
+
+        # For transition operator constraints (N-level systems from nlevel_ops)
+        if is_transition_constraint(constraint)
+            trans_info = get_transition_constraint_info(constraint)
+            if trans_info !== nothing && t == Transition_
+                # Check if this operator has same name and indices
+                if op.name == trans_info.name && op.inds == trans_info.inds
+                    return classify_transition_for_constraint(op, constraint, trans_info)
+                end
+            end
+        end
     end
 
     # Operator doesn't affect any constraint - it's "transparent" (diagonal)
@@ -160,6 +176,67 @@ function classify_lie_generator_for_constraint(
     # raising/lowering operators (like σ± for SU(2)), but for now we treat
     # all off-diagonal generators as MIXED.
     return MIXED
+end
+
+"""
+    classify_transition_for_constraint(op::BaseOperator, constraint::OperatorConstraint, trans_info::NamedTuple)
+
+Classify a transition operator |i⟩⟨j| relative to a constraint on projector |k⟩⟨k|.
+
+The transition operator |i⟩⟨j| takes state |j⟩ to state |i⟩.
+
+Classification logic:
+- Diagonal transitions (i == j) are always DIAGONAL
+- Off-diagonal transitions are classified based on their relationship to the constrained state:
+  - If eigenvalue == 1 (we ARE in state k):
+    - |m⟩⟨k| with m ≠ k is LOWERING (takes us OUT of state k)
+    - |k⟩⟨m| with m ≠ k is RAISING (requires being in state m, not applicable from k)
+  - If eigenvalue == 0 (we are NOT in state k):
+    - |k⟩⟨m| with m ≠ k is RAISING (takes us INTO state k)
+    - |m⟩⟨k| with m ≠ k is LOWERING (requires being in state k, not applicable)
+  - If the operator doesn't involve the constrained state: DIAGONAL (transparent)
+"""
+function classify_transition_for_constraint(
+    op::BaseOperator,
+    constraint::OperatorConstraint,
+    trans_info::NamedTuple,
+)
+    indices = get_transition_indices(op)
+    indices === nothing && return DIAGONAL
+    
+    i, j = indices
+    constrained_state = trans_info.state
+    eigenvalue = trans_info.eigenvalue
+    
+    # Diagonal transitions are always diagonal
+    if i == j
+        return DIAGONAL
+    end
+    
+    # Off-diagonal: |i⟩⟨j| takes state j to state i
+    # For eigenvalue == 1 (we ARE in state k):
+    if eigenvalue == 1
+        if j == constrained_state && i != constrained_state
+            # |m⟩⟨k| takes us OUT of state k → LOWERING
+            return LOWERING
+        elseif i == constrained_state && j != constrained_state
+            # |k⟩⟨m| would need us to be in state m first → RAISING
+            # (from perspective of state k, this brings population in)
+            return RAISING
+        end
+    # For eigenvalue == 0 (we are NOT in state k):
+    elseif eigenvalue == 0
+        if i == constrained_state && j != constrained_state
+            # |k⟩⟨m| takes us INTO state k → RAISING
+            return RAISING
+        elseif j == constrained_state && i != constrained_state
+            # |m⟩⟨k| requires being in state k → LOWERING
+            return LOWERING
+        end
+    end
+    
+    # Operator doesn't involve the constrained state - transparent
+    return DIAGONAL
 end
 
 """
@@ -254,6 +331,16 @@ function find_affected_constraint(op::BaseOperator, P::Subspace)
                 if op.name == lie_info.name &&
                    op.inds == lie_info.inds &&
                    op.algebra_id == lie_info.algebra_id
+                    return i
+                end
+            end
+        end
+
+        # Check transition operator constraints
+        if is_transition_constraint(constraint)
+            trans_info = get_transition_constraint_info(constraint)
+            if trans_info !== nothing && t == Transition_
+                if op.name == trans_info.name && op.inds == trans_info.inds
                     return i
                 end
             end

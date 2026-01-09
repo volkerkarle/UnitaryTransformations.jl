@@ -7,6 +7,8 @@ For example, `Subspace(σz() => -1)` defines the spin-down subspace.
 
 export Subspace, OperatorConstraint, get_spin_constraint_info
 export is_lie_algebra_constraint, get_lie_algebra_constraint_info
+export is_transition_constraint, get_transition_constraint_info
+export is_number_constraint
 
 using QuantumAlgebra
 using QuantumAlgebra:
@@ -25,6 +27,7 @@ using QuantumAlgebra:
     FermionCreate_,
     FermionDestroy_,
     LieAlgebraGen_,
+    Transition_,
     SU2_ALGEBRA_ID,
     SU3_ALGEBRA_ID,
     is_lie_algebra_gen,
@@ -357,4 +360,105 @@ function get_lie_generator_state_info(op::BaseOperator)
     end
 
     return nothing
+end
+
+# =============================================================================
+# N-Level Transition Operator Constraint Support
+# =============================================================================
+
+"""
+    is_transition_constraint(c::OperatorConstraint)
+
+Check if a constraint is on a transition operator (|i⟩⟨j| from nlevel_ops).
+Only diagonal transition operators (|i⟩⟨i|, i.e., projectors) can be used as constraints.
+"""
+function is_transition_constraint(c::OperatorConstraint)
+    op = c.operator
+
+    # Check if single term with single Transition_ operator
+    if length(op.terms) == 1
+        term, coeff = first(op.terms)
+        if coeff == 1 && length(term.bares.v) == 1
+            bare = term.bares.v[1]
+            if bare.t == Transition_
+                # Only diagonal transitions (projectors |i⟩⟨i|) can be constraints
+                return is_diagonal_transition(bare)
+            end
+        end
+    end
+
+    return false
+end
+
+"""
+    is_diagonal_transition(op::BaseOperator)
+
+Check if a transition operator is diagonal (|i⟩⟨i|, a projector).
+For nlevel_ops(N, name), the encoding is:
+- algebra_id = N (dimension)
+- gen_idx = (i-1)*N + j for |i⟩⟨j|
+A diagonal transition has i == j, i.e., gen_idx = (i-1)*N + i.
+"""
+function is_diagonal_transition(op::BaseOperator)
+    op.t == Transition_ || return false
+    
+    N = Int(op.algebra_id)
+    gen_idx = Int(op.gen_idx)
+    
+    # Extract i and j from gen_idx = (i-1)*N + j
+    i = (gen_idx - 1) ÷ N + 1
+    j = (gen_idx - 1) % N + 1
+    
+    return i == j
+end
+
+"""
+    get_transition_indices(op::BaseOperator)
+
+Extract the (i, j) indices from a transition operator |i⟩⟨j|.
+Returns (i, j) tuple or nothing if not a transition operator.
+"""
+function get_transition_indices(op::BaseOperator)
+    op.t == Transition_ || return nothing
+    
+    N = Int(op.algebra_id)
+    gen_idx = Int(op.gen_idx)
+    
+    i = (gen_idx - 1) ÷ N + 1
+    j = (gen_idx - 1) % N + 1
+    
+    return (i, j)
+end
+
+"""
+    get_transition_constraint_info(c::OperatorConstraint)
+
+Extract information about a transition operator constraint.
+
+Returns a NamedTuple with fields:
+- `name`: The operator name (Symbol)
+- `inds`: The operator indices
+- `N`: The dimension (number of levels)
+- `state`: The state index i for |i⟩⟨i|
+- `eigenvalue`: The constraint eigenvalue (0 or 1)
+
+Returns `nothing` if not a transition constraint.
+"""
+function get_transition_constraint_info(c::OperatorConstraint)
+    is_transition_constraint(c) || return nothing
+
+    term, _ = first(c.operator.terms)
+    bare = term.bares.v[1]
+    
+    N = Int(bare.algebra_id)
+    i, j = get_transition_indices(bare)
+    
+    # For diagonal transitions, i == j
+    return (
+        name = bare.name,
+        inds = bare.inds,
+        N = N,
+        state = i,
+        eigenvalue = c.eigenvalue,
+    )
 end

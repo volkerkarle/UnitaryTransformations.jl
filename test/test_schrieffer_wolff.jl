@@ -536,23 +536,34 @@
             push!(op_strings, op_str)
         end
 
-        # Should have:
+        # When projected to the vacuum subspace (n=0), all cavity operators (a, a†) 
+        # should vanish because they take us out of the vacuum.
+        # Only spin operators should remain:
         # - Identity (constant energy shift)
-        # - σ⁺σ⁻ (qubit frequency shift)
-        # - a†a (cavity frequency shift)
-        # - a†σ⁺σ⁻a (dispersive shift)
-        # - a†²a² (Kerr nonlinearity - NEW at order 4)
-        # - a†²σ⁺σ⁻a² (higher dispersive - NEW at order 4)
+        # - σ⁺σ⁻ (qubit frequency shift / population)
         @test "𝟙" in op_strings
         @test "σ⁺() σ⁻()" in op_strings
-        @test "a†() a()" in op_strings
-        @test "a†() σ⁺() σ⁻() a()" in op_strings
-        @test "a†()² a()²" in op_strings  # Kerr term!
-        @test "a†()² σ⁺() σ⁻() a()²" in op_strings  # Higher-order dispersive
+        
+        # Cavity operators should NOT appear in the vacuum-projected Hamiltonian
+        @test !("a†() a()" in op_strings)
+        @test !("a†() σ⁺() σ⁻() a()" in op_strings)
+        @test !("a†()² a()²" in op_strings)
+        @test !("a†()² σ⁺() σ⁻() a()²" in op_strings)
 
-        # Check that Kerr coefficient scales as g⁴
+        # The full H_eff (before projection) should still have Kerr terms
+        heff_op_strings = Set{String}()
+        for (term, _) in result4.H_eff.terms
+            op_str = isempty(term.bares.v) ? "𝟙" : string(term.bares)
+            push!(heff_op_strings, op_str)
+        end
+        
+        # H_eff should contain cavity operators and Kerr terms
+        @test "a†() a()" in heff_op_strings
+        @test "a†()² a()²" in heff_op_strings  # Kerr term in H_eff!
+
+        # Check that Kerr coefficient in H_eff scales as g⁴
         kerr_coeff = nothing
-        for (term, coeff) in result4.H_P.terms
+        for (term, coeff) in result4.H_eff.terms
             op_str = isempty(term.bares.v) ? "𝟙" : string(term.bares)
             if op_str == "a†()² a()²"
                 kerr_coeff = coeff
