@@ -9,9 +9,6 @@ Uses Symbolics.jl for proper symbolic manipulation of energy denominators.
 """
 module UnitaryTransformations
 
-# Disable precompilation due to iszero method override
-__precompile__(false)
-
 using QuantumAlgebra
 using QuantumAlgebra:
     comm,
