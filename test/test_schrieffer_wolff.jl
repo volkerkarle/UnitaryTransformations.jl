@@ -543,7 +543,7 @@
         # - σ⁺σ⁻ (qubit frequency shift / population)
         @test "𝟙" in op_strings
         @test "σ⁺() σ⁻()" in op_strings
-        
+
         # Cavity operators should NOT appear in the vacuum-projected Hamiltonian
         @test !("a†() a()" in op_strings)
         @test !("a†() σ⁺() σ⁻() a()" in op_strings)
@@ -556,7 +556,7 @@
             op_str = isempty(term.bares.v) ? "𝟙" : string(term.bares)
             push!(heff_op_strings, op_str)
         end
-        
+
         # H_eff should contain cavity operators and Kerr terms
         @test "a†() a()" in heff_op_strings
         @test "a†()² a()²" in heff_op_strings  # Kerr term in H_eff!

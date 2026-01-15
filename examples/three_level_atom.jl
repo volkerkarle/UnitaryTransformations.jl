@@ -88,7 +88,7 @@ println("Project to ground state manifold {|1⟩, |2⟩} by eliminating |3⟩.")
 # The excited state has σ[3,3] = 0 in the ground manifold
 P_ground = Subspace(σ[3, 3] => 0)
 
-result_ground = schrieffer_wolff(H, P_ground; order=2, simplify_mode=:fractions)
+result_ground = schrieffer_wolff(H, P_ground; order = 2, simplify_mode = :fractions)
 
 println("\nGenerator S:")
 println("  ", result_ground.S)
@@ -103,7 +103,7 @@ println("Get the energy of state |1⟩ including all virtual corrections.")
 
 P_1 = Subspace(σ[1, 1] => 1)
 
-result_1 = schrieffer_wolff(H, P_1; order=2, simplify_mode=:fractions)
+result_1 = schrieffer_wolff(H, P_1; order = 2, simplify_mode = :fractions)
 
 println("\nProjected to |1⟩ (H_P):")
 println("  ", result_1.H_P)
@@ -114,7 +114,7 @@ println("Get the energy of state |2⟩ including all virtual corrections.")
 
 P_2 = Subspace(σ[2, 2] => 1)
 
-result_2 = schrieffer_wolff(H, P_2; order=2, simplify_mode=:fractions)
+result_2 = schrieffer_wolff(H, P_2; order = 2, simplify_mode = :fractions)
 
 println("\nProjected to |2⟩ (H_P):")
 println("  ", result_2.H_P)

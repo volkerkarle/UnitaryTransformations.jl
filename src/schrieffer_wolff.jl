@@ -9,12 +9,24 @@ export schrieffer_wolff, sw_generator, project_to_subspace
 
 using QuantumAlgebra
 using QuantumAlgebra:
-    QuExpr, QuTerm, BaseOperator, BaseOpProduct, TLSCreate_, TLSDestroy_, Transition_, normal_form, comm
+    QuExpr,
+    QuTerm,
+    BaseOperator,
+    BaseOpProduct,
+    TLSCreate_,
+    TLSDestroy_,
+    Transition_,
+    normal_form,
+    comm
 
 import ..UnitaryTransformations:
-    get_spin_constraint_info, get_transition_constraint_info, get_transition_indices,
+    get_spin_constraint_info,
+    get_transition_constraint_info,
+    get_transition_indices,
     is_number_constraint,
-    simplify_coefficients, multi_nested_commutator, compositions
+    simplify_coefficients,
+    multi_nested_commutator,
+    compositions
 
 using Symbolics: Num, expand
 
@@ -513,7 +525,7 @@ For n > 0:
 """
 function substitute_number_operator_projection(H::QuExpr, constraint::OperatorConstraint)
     n = constraint.eigenvalue
-    
+
     # Extract the operator info from the constraint
     op_term = first(constraint.operator.terms)[1]
     ops = op_term.bares.v
@@ -523,7 +535,7 @@ function substitute_number_operator_projection(H::QuExpr, constraint::OperatorCo
     is_boson = ops[1].t == BosonCreate_
     create_type = is_boson ? BosonCreate_ : FermionCreate_
     destroy_type = is_boson ? BosonDestroy_ : FermionDestroy_
-    
+
     result = QuExpr()
 
     for (term, coeff) in H.terms
@@ -535,7 +547,7 @@ function substitute_number_operator_projection(H::QuExpr, constraint::OperatorCo
 
         while i <= length(term_ops)
             op = term_ops[i]
-            
+
             # Check if this operator matches our constraint
             if op.name == op_name && op.inds == op_inds
                 if op.t == create_type || op.t == destroy_type
@@ -550,9 +562,9 @@ function substitute_number_operator_projection(H::QuExpr, constraint::OperatorCo
                 elseif i < length(term_ops)
                     # Check for a†a pattern
                     next_op = term_ops[i+1]
-                    if op.t == create_type && 
+                    if op.t == create_type &&
                        next_op.t == destroy_type &&
-                       next_op.name == op_name && 
+                       next_op.name == op_name &&
                        next_op.inds == op_inds
                         # Found a†a - replace with eigenvalue n
                         eigenvalue_factor *= n
@@ -594,12 +606,12 @@ function substitute_number_operator_projection(H::QuExpr, constraint::OperatorCo
                 BaseOpProduct(new_ops),
             )
         end
-        
+
         # If eigenvalue factor is 0, skip the term
         if eigenvalue_factor == 0
             continue
         end
-        
+
         result = result + coeff * eigenvalue_factor * QuExpr(new_term)
     end
 
@@ -689,7 +701,7 @@ trans_info contains: name, inds, N, state (the constrained state k), eigenvalue
 """
 function substitute_transition_projections(H::QuExpr, trans_info::NamedTuple)
     result = QuExpr()
-    
+
     constrained_state = trans_info.state
     eigenvalue = trans_info.eigenvalue
     op_name = trans_info.name
@@ -708,13 +720,13 @@ function substitute_transition_projections(H::QuExpr, trans_info::NamedTuple)
                 indices = get_transition_indices(op)
                 if indices !== nothing
                     i, j = indices
-                    
+
                     if eigenvalue == 1
                         # We ARE in state `constrained_state` (call it k)
                         # Projection: P = |k⟩⟨k|
                         # P |i⟩⟨j| P = |k⟩⟨k|i⟩⟨j|k⟩⟨k| = δ_{ki} δ_{jk} |k⟩⟨k|
                         # So only |k⟩⟨k| survives, and it becomes the identity in the subspace
-                        
+
                         if i == constrained_state && j == constrained_state
                             # |k⟩⟨k| → 1 (identity in the projected subspace)
                             eigenvalue_factor *= 1

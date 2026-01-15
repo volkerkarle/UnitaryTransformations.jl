@@ -102,7 +102,8 @@ println("(Tip: set JULIA_NUM_THREADS>1 for faster order 4)")
 P_n0 = Subspace(a'() * a() => 0)
 
 # Order 2 (full SW)
-t_o2 = @elapsed result_n0_o2 = schrieffer_wolff(H, P_n0; order = 2, simplify_mode = :fractions)
+t_o2 =
+    @elapsed result_n0_o2 = schrieffer_wolff(H, P_n0; order = 2, simplify_mode = :fractions)
 println("  Order 2 finished in $(round(t_o2, digits=2)) s")
 
 # Order 4 using diagonal_only + parallel to save RAM/CPU
@@ -138,7 +139,14 @@ println("Effective cavity Hamiltonian when rotor is in ground state.")
 P_L0 = Subspace(L[1, 1] => 1)
 
 result_L0_o2 = schrieffer_wolff(H, P_L0; order = 2, simplify_mode = :fractions)
-result_L0_o4 = schrieffer_wolff(H, P_L0; order = 4, simplify_mode = :fast, diagonal_only=true, parallel=true)
+result_L0_o4 = schrieffer_wolff(
+    H,
+    P_L0;
+    order = 4,
+    simplify_mode = :fast,
+    diagonal_only = true,
+    parallel = true,
+)
 
 println("\nOrder 2 Generator S:")
 println("  ", result_L0_o2.S)
@@ -161,7 +169,14 @@ println("Ground state energy shift from virtual excitations.")
 P_ground = Subspace(a'() * a() => 0, L[1, 1] => 1)
 
 result_ground = schrieffer_wolff(H, P_ground; order = 2, simplify_mode = :fractions)
-result_L0n0_o4 = schrieffer_wolff(H, P_ground; order = 4, simplify_mode = :fast, diagonal_only=true, parallel=true)
+result_L0n0_o4 = schrieffer_wolff(
+    H,
+    P_ground;
+    order = 4,
+    simplify_mode = :fast,
+    diagonal_only = true,
+    parallel = true,
+)
 
 println("\nGenerator S:")
 println("  ", result_ground.S)
@@ -208,7 +223,10 @@ E.g., (12//1) → 12
 function clean_rationals(expr)
     # Use SymbolicUtils from Symbolics to traverse and clean up rationals
     uexpr = Symbolics.unwrap(expr)
-    clean = SymbolicUtils.Postwalk(x -> (x isa Rational && isone(denominator(x))) ? numerator(x) : x; threaded=false)
+    clean = SymbolicUtils.Postwalk(
+        x -> (x isa Rational && isone(denominator(x))) ? numerator(x) : x;
+        threaded = false,
+    )
     return Symbolics.wrap(clean(uexpr))
 end
 
@@ -245,7 +263,7 @@ function simplify_with_detunings(expr::QuExpr, B, ω_c, Δ₊, Δ₋, Δ₁₂�
         -ω_c + 4B => -Δ₁₂₋,
         4B - ω_c => -Δ₁₂₋,
     )
-    
+
     # Quadratic patterns (products of detunings)
     # ω_c² - 4B² = (ω_c + 2B)(ω_c - 2B) = Δ₊Δ₋
     # ω_c² - 16B² = (ω_c + 4B)(ω_c - 4B) = Δ₁₂₊Δ₁₂₋
@@ -260,64 +278,64 @@ function simplify_with_detunings(expr::QuExpr, B, ω_c, Δ₊, Δ₋, Δ₁₂�
         -ω_c^2 + 16B^2 => -Δ₁₂₊ * Δ₁₂₋,
         # Perfect square patterns from simplification.md
         # -16B² - 16Bω_c - 4ω_c² = -4(2B + ω_c)² = -4Δ₊²
-        -16B^2 - 16B*ω_c - 4ω_c^2 => -4Δ₊^2,
-        -4ω_c^2 - 16B*ω_c - 16B^2 => -4Δ₊^2,
+        -16B^2 - 16B * ω_c - 4ω_c^2 => -4Δ₊^2,
+        -4ω_c^2 - 16B * ω_c - 16B^2 => -4Δ₊^2,
         # -16B² + 16Bω_c - 4ω_c² = -4(ω_c - 2B)² = -4Δ₋²
-        -16B^2 + 16B*ω_c - 4ω_c^2 => -4Δ₋^2,
-        -4ω_c^2 + 16B*ω_c - 16B^2 => -4Δ₋^2,
+        -16B^2 + 16B * ω_c - 4ω_c^2 => -4Δ₋^2,
+        -4ω_c^2 + 16B * ω_c - 16B^2 => -4Δ₋^2,
         # -48B² - 48Bω_c - 12ω_c² = -12Δ₊²
-        -48B^2 - 48B*ω_c - 12ω_c^2 => -12Δ₊^2,
+        -48B^2 - 48B * ω_c - 12ω_c^2 => -12Δ₊^2,
         # -48B² + 48Bω_c - 12ω_c² = -12Δ₋²
-        -48B^2 + 48B*ω_c - 12ω_c^2 => -12Δ₋^2,
+        -48B^2 + 48B * ω_c - 12ω_c^2 => -12Δ₋^2,
         # -48B² + 12ω_c² = 12(ω_c² - 4B²) = 12Δ₊Δ₋
         -48B^2 + 12ω_c^2 => 12Δ₊ * Δ₋,
         12ω_c^2 - 48B^2 => 12Δ₊ * Δ₋,
         # Cross terms appearing at order 2:
         # 8B² + 2Bω_c - ω_c² = -(ω_c² - 2Bω_c - 8B²) = -(ω_c - 4B)(ω_c + 2B) = -Δ₁₂₋ Δ₊
-        8B^2 + 2B*ω_c - ω_c^2 => -Δ₁₂₋ * Δ₊,
-        -ω_c^2 + 2B*ω_c + 8B^2 => -Δ₁₂₋ * Δ₊,
-        ω_c^2 - 2B*ω_c - 8B^2 => Δ₁₂₋ * Δ₊,
+        8B^2 + 2B * ω_c - ω_c^2 => -Δ₁₂₋ * Δ₊,
+        -ω_c^2 + 2B * ω_c + 8B^2 => -Δ₁₂₋ * Δ₊,
+        ω_c^2 - 2B * ω_c - 8B^2 => Δ₁₂₋ * Δ₊,
         # 8B² - 2Bω_c - ω_c² = -(ω_c² + 2Bω_c - 8B²) = -(ω_c + 4B)(ω_c - 2B) = -Δ₁₂₊ Δ₋
-        8B^2 - 2B*ω_c - ω_c^2 => -Δ₁₂₊ * Δ₋,
-        -ω_c^2 - 2B*ω_c + 8B^2 => -Δ₁₂₊ * Δ₋,
-        ω_c^2 + 2B*ω_c - 8B^2 => Δ₁₂₊ * Δ₋,
+        8B^2 - 2B * ω_c - ω_c^2 => -Δ₁₂₊ * Δ₋,
+        -ω_c^2 - 2B * ω_c + 8B^2 => -Δ₁₂₊ * Δ₋,
+        ω_c^2 + 2B * ω_c - 8B^2 => Δ₁₂₊ * Δ₋,
         # -4B² - ω_c² + 4Bω_c = -(ω_c - 2B)² = -Δ₋² (already covered)
         # -4B² - ω_c² - 4Bω_c = -(ω_c + 2B)² = -Δ₊² (already covered)
     )
-    
+
     # Process each term in the QuExpr
     result_terms = Dict{QuTerm,Any}()
-    
+
     for (term, coeff) in expr.terms
         if coeff isa Num
             # Apply substitutions to the symbolic coefficient
             new_coeff = coeff
-            
+
             # First expand to canonical form
             new_coeff = expand(new_coeff)
-            
+
             # Apply quadratic substitutions first (they're more specific)
             for (pattern, replacement) in quadratic_subs
                 new_coeff = Symbolics.substitute(new_coeff, pattern => replacement)
             end
-            
+
             # Apply linear detuning substitutions
             for (pattern, replacement) in linear_subs
                 new_coeff = Symbolics.substitute(new_coeff, pattern => replacement)
             end
-            
+
             # Simplify fractions to combine terms
             new_coeff = simplify_fractions(new_coeff)
-            
+
             # Clean up rationals like 12//1 → 12
             new_coeff = clean_rationals(new_coeff)
-            
+
             result_terms[term] = new_coeff
         else
             result_terms[term] = coeff
         end
     end
-    
+
     return QuExpr(result_terms)
 end
 
@@ -333,7 +351,8 @@ println("Order 4 H_P (simplified):")
 println("  ", H_P_L0_simplified)
 
 println("\n--- Simplified Option C: Full Ground State (n = 0, L = 0) ---")
-H_P_ground_simplified = simplify_with_detunings(result_L0n0_o4.H_P, B, ω_c, Δ₊, Δ₋, Δ₁₂₊, Δ₁₂₋)
+H_P_ground_simplified =
+    simplify_with_detunings(result_L0n0_o4.H_P, B, ω_c, Δ₊, Δ₋, Δ₁₂₊, Δ₁₂₋)
 println("Order 4 H_P (simplified):")
 println("  ", H_P_ground_simplified)
 
@@ -345,7 +364,8 @@ println("Option A (n=0): ", H_P_n0_o2_simplified)
 H_P_L0_o2_simplified = simplify_with_detunings(result_L0_o2.H_P, B, ω_c, Δ₊, Δ₋, Δ₁₂₊, Δ₁₂₋)
 println("Option B (L=0): ", H_P_L0_o2_simplified)
 
-H_P_ground_o2_simplified = simplify_with_detunings(result_ground.H_P, B, ω_c, Δ₊, Δ₋, Δ₁₂₊, Δ₁₂₋)
+H_P_ground_o2_simplified =
+    simplify_with_detunings(result_ground.H_P, B, ω_c, Δ₊, Δ₋, Δ₁₂₊, Δ₁₂₋)
 println("Option C (n=0,L=0): ", H_P_ground_o2_simplified)
 
 # =============================================================================
@@ -380,7 +400,7 @@ Verifies Hermiticity by checking that conjugate pairs have equal coefficients.
 function extract_hermitian_form(H_eff::QuExpr)
     # Define the operator basis - use normal_form to ensure canonical ordering
     # Identity (constant term) is represented by empty operator product
-    
+
     # Extract coefficients for each operator structure
     # For the constant term, we need to find terms with no operators
     const_coeff = nothing
@@ -390,24 +410,24 @@ function extract_hermitian_form(H_eff::QuExpr)
             break
         end
     end
-    
+
     # Quadratic operators
     coeff_a2 = extract_coefficient(H_eff, a()^2)           # a²
     coeff_adag2 = extract_coefficient(H_eff, a'()^2)       # a†²
-    coeff_adaga = extract_coefficient(H_eff, a'()*a())     # a†a (number operator)
-    
+    coeff_adaga = extract_coefficient(H_eff, a'() * a())     # a†a (number operator)
+
     # Quartic operators
     coeff_a4 = extract_coefficient(H_eff, a()^4)                    # a⁴
     coeff_adag4 = extract_coefficient(H_eff, a'()^4)                # a†⁴
-    coeff_adag3a = extract_coefficient(H_eff, a'()^3*a())           # a†³a
-    coeff_adaga3 = extract_coefficient(H_eff, a'()*a()^3)           # a†a³
-    coeff_adag2a2 = extract_coefficient(H_eff, a'()^2*a()^2)        # a†²a²
-    
+    coeff_adag3a = extract_coefficient(H_eff, a'()^3 * a())           # a†³a
+    coeff_adaga3 = extract_coefficient(H_eff, a'() * a()^3)           # a†a³
+    coeff_adag2a2 = extract_coefficient(H_eff, a'()^2 * a()^2)        # a†²a²
+
     # Check Hermiticity: coefficients of conjugate pairs should be equal
     # (or both nothing)
     hermitian_ok = true
     warnings = String[]
-    
+
     function check_equal(c1, c2, name1, name2)
         if c1 === nothing && c2 === nothing
             return true
@@ -429,18 +449,18 @@ function extract_hermitian_form(H_eff::QuExpr)
         end
         return true
     end
-    
+
     hermitian_ok &= check_equal(coeff_adag2, coeff_a2, "coeff(a†²)", "coeff(a²)")
     hermitian_ok &= check_equal(coeff_adag4, coeff_a4, "coeff(a†⁴)", "coeff(a⁴)")
     hermitian_ok &= check_equal(coeff_adag3a, coeff_adaga3, "coeff(a†³a)", "coeff(a†a³)")
-    
+
     if !hermitian_ok
         println("Hermiticity check warnings:")
         for w in warnings
             println(w)
         end
     end
-    
+
     # Build the result - use the a†ⁿ coefficient as the canonical one for pairs
     return (
         E0 = const_coeff,
@@ -458,10 +478,10 @@ end
 
 Pretty-print the Hermitian polynomial form coefficients.
 """
-function print_hermitian_form(coeffs::NamedTuple; name::String="H_eff")
+function print_hermitian_form(coeffs::NamedTuple; name::String = "H_eff")
     println("$name = E₀ + A(a†² + a²) + Ω a†a + κ(a†⁴ + a⁴) + μ(a†³a + a†a³) + ν a†²a²")
     println()
-    
+
     function format_coeff(c)
         if c === nothing
             return "0"
@@ -471,7 +491,7 @@ function print_hermitian_form(coeffs::NamedTuple; name::String="H_eff")
             return string(c)
         end
     end
-    
+
     println("  E₀ = ", format_coeff(coeffs.E0))
     println("  A  = ", format_coeff(coeffs.A))
     println("  Ω  = ", format_coeff(coeffs.Ω))
@@ -492,28 +512,33 @@ Returns a NamedTuple with diagonal and off-diagonal terms.
 """
 function extract_rotor_hermitian_form(H_eff::QuExpr, L)
     # Diagonal terms (populations/energies)
-    E0 = extract_coefficient(H_eff, L[1,1])   # |L=0⟩⟨L=0|
-    E1 = extract_coefficient(H_eff, L[2,2])   # |L=1⟩⟨L=1|
-    E2 = extract_coefficient(H_eff, L[3,3])   # |L=2⟩⟨L=2|
-    
+    E0 = extract_coefficient(H_eff, L[1, 1])   # |L=0⟩⟨L=0|
+    E1 = extract_coefficient(H_eff, L[2, 2])   # |L=1⟩⟨L=1|
+    E2 = extract_coefficient(H_eff, L[3, 3])   # |L=2⟩⟨L=2|
+
     # Off-diagonal terms (coherences/couplings)
     # L=0 ↔ L=1 coupling
-    V01 = extract_coefficient(H_eff, L[1,2])  # |L=0⟩⟨L=1|
-    V10 = extract_coefficient(H_eff, L[2,1])  # |L=1⟩⟨L=0|
-    
+    V01 = extract_coefficient(H_eff, L[1, 2])  # |L=0⟩⟨L=1|
+    V10 = extract_coefficient(H_eff, L[2, 1])  # |L=1⟩⟨L=0|
+
     # L=1 ↔ L=2 coupling  
-    V12 = extract_coefficient(H_eff, L[2,3])  # |L=1⟩⟨L=2|
-    V21 = extract_coefficient(H_eff, L[3,2])  # |L=2⟩⟨L=1|
-    
+    V12 = extract_coefficient(H_eff, L[2, 3])  # |L=1⟩⟨L=2|
+    V21 = extract_coefficient(H_eff, L[3, 2])  # |L=2⟩⟨L=1|
+
     # L=0 ↔ L=2 coupling (second-order process, ΔL=2)
-    V02 = extract_coefficient(H_eff, L[1,3])  # |L=0⟩⟨L=2|
-    V20 = extract_coefficient(H_eff, L[3,1])  # |L=2⟩⟨L=0|
-    
+    V02 = extract_coefficient(H_eff, L[1, 3])  # |L=0⟩⟨L=2|
+    V20 = extract_coefficient(H_eff, L[3, 1])  # |L=2⟩⟨L=0|
+
     return (
-        E0 = E0, E1 = E1, E2 = E2,
-        V01 = V01, V10 = V10,
-        V12 = V12, V21 = V21,
-        V02 = V02, V20 = V20,
+        E0 = E0,
+        E1 = E1,
+        E2 = E2,
+        V01 = V01,
+        V10 = V10,
+        V12 = V12,
+        V21 = V21,
+        V02 = V02,
+        V20 = V20,
     )
 end
 
@@ -522,10 +547,12 @@ end
 
 Pretty-print the rotor Hermitian polynomial form coefficients.
 """
-function print_rotor_hermitian_form(coeffs::NamedTuple; name::String="H_eff")
-    println("$name = E₀|0⟩⟨0| + E₁|1⟩⟨1| + E₂|2⟩⟨2| + V₀₁(|0⟩⟨1| + h.c.) + V₁₂(|1⟩⟨2| + h.c.) + V₀₂(|0⟩⟨2| + h.c.)")
+function print_rotor_hermitian_form(coeffs::NamedTuple; name::String = "H_eff")
+    println(
+        "$name = E₀|0⟩⟨0| + E₁|1⟩⟨1| + E₂|2⟩⟨2| + V₀₁(|0⟩⟨1| + h.c.) + V₁₂(|1⟩⟨2| + h.c.) + V₀₂(|0⟩⟨2| + h.c.)",
+    )
     println()
-    
+
     function format_coeff(c)
         if c === nothing
             return "0"
@@ -535,7 +562,7 @@ function print_rotor_hermitian_form(coeffs::NamedTuple; name::String="H_eff")
             return string(c)
         end
     end
-    
+
     println("Diagonal (energies):")
     println("  E₀ = ", format_coeff(coeffs.E0))
     println("  E₁ = ", format_coeff(coeffs.E1))
@@ -557,12 +584,12 @@ println()
 
 println("Order 4 H_P (simplified with detunings):")
 coeffs_n0_simplified = extract_rotor_hermitian_form(H_P_n0_simplified, L)
-print_rotor_hermitian_form(coeffs_n0_simplified; name="H_eff")
+print_rotor_hermitian_form(coeffs_n0_simplified; name = "H_eff")
 
 println()
 println("Order 2 H_P (simplified with detunings):")
 coeffs_n0_o2 = extract_rotor_hermitian_form(H_P_n0_o2_simplified, L)
-print_rotor_hermitian_form(coeffs_n0_o2; name="H_eff (order 2)")
+print_rotor_hermitian_form(coeffs_n0_o2; name = "H_eff (order 2)")
 
 # =============================================================================
 # Apply to Option B (L=0, rotational ground state) - Effective CAVITY Hamiltonian
@@ -576,13 +603,13 @@ println()
 # First extract from the simplified version
 println("From simplified H_P (with detunings):")
 coeffs_L0_simplified = extract_hermitian_form(H_P_L0_simplified)
-print_hermitian_form(coeffs_L0_simplified; name="H_eff")
+print_hermitian_form(coeffs_L0_simplified; name = "H_eff")
 
 # Also show the order-2 result for comparison
 println()
 println("--- Order 2 Comparison ---")
 coeffs_L0_o2 = extract_hermitian_form(H_P_L0_o2_simplified)
-print_hermitian_form(coeffs_L0_o2; name="H_eff (order 2)")
+print_hermitian_form(coeffs_L0_o2; name = "H_eff (order 2)")
 
 # =============================================================================
 # Section 5: Physical Interpretation

@@ -45,10 +45,11 @@ function simplify_coefficients(expr::QuExpr; mode::Symbol = :fast, aggressive::B
 
     # Build result directly to avoid expensive iszero checks in + operator
     result_terms = Dict{QuTerm,Number}()
-    
+
     # Rewriter to clean up rationals with denominator 1 (e.g., 16//1 -> 16)
-    clean_rationals = Postwalk(x -> (x isa Rational && isone(denominator(x))) ? numerator(x) : x)
-    
+    clean_rationals =
+        Postwalk(x -> (x isa Rational && isone(denominator(x))) ? numerator(x) : x)
+
     for (term, coeff) in expr.terms
         if coeff isa Num
             simplified_coeff = if mode == :aggressive
@@ -60,12 +61,12 @@ function simplify_coefficients(expr::QuExpr; mode::Symbol = :fast, aggressive::B
             else  # :fast - just expand, no simplify (much faster)
                 expand(coeff)
             end
-            
+
             # Clean up n//1 rationals to plain integers for cleaner display
             u = Symbolics.unwrap(simplified_coeff)
             cleaned = clean_rationals(u)
             simplified_coeff = Symbolics.wrap(cleaned)
-            
+
             result_terms[term] = simplified_coeff
         else
             result_terms[term] = coeff
@@ -363,32 +364,32 @@ function compact_form(expr::QuExpr; simplify_coeff::Bool = true)
     if simplify_coeff
         expr = simplify_coefficients(expr)
     end
-    
+
     # Track which terms we've processed
     processed = Set{QuTerm}()
-    
+
     # Hermitian (self-adjoint) terms
     hermitian_terms = Dict{QuTerm,Any}()
-    
+
     # Non-Hermitian pairs: (term, coeff) where the full contribution is coeff*term + h.c.
     hc_pairs = Vector{Tuple{QuTerm,Any}}()
-    
+
     for (term, coeff) in expr.terms
         term in processed && continue
-        
+
         # Compute the adjoint of this term
         term_expr = QuExpr(Dict(term => 1))
         adj_expr = normal_form(adjoint(term_expr))
-        
+
         if length(adj_expr.terms) != 1
             # Adjoint is not a simple term - treat as hermitian for safety
             hermitian_terms[term] = coeff
             push!(processed, term)
             continue
         end
-        
+
         adj_term, adj_factor = first(adj_expr.terms)
-        
+
         # Check if self-adjoint (term† = term, up to a phase)
         if adj_term == term
             # Self-adjoint term (e.g., a†a, σz, identity)
@@ -397,7 +398,7 @@ function compact_form(expr::QuExpr; simplify_coeff::Bool = true)
         elseif haskey(expr.terms, adj_term) && !(adj_term in processed)
             # Found the h.c. partner in the expression
             adj_coeff = expr.terms[adj_term]
-            
+
             # For H to be Hermitian: coeff * term + adj_coeff * term†
             # This equals coeff * term + h.c. if adj_coeff = conj(coeff) * adj_factor
             # For simplicity, we just pair them and show "coeff * term + h.c."
@@ -410,7 +411,7 @@ function compact_form(expr::QuExpr; simplify_coeff::Bool = true)
             push!(processed, term)
         end
     end
-    
+
     return (hermitian_terms, hc_pairs)
 end
 
@@ -431,33 +432,33 @@ print_compact(H; name="H")
 """
 function print_compact(expr::QuExpr; name::String = "", simplify_coeff::Bool = true)
     hermitian_terms, hc_pairs = compact_form(expr; simplify_coeff)
-    
+
     parts = String[]
-    
+
     # Add Hermitian terms
     for (term, coeff) in hermitian_terms
         term_expr = coeff * QuExpr(Dict(term => 1))
         term_str = string(normal_form(term_expr))
         push!(parts, term_str)
     end
-    
+
     # Add h.c. pairs
     for (term, coeff) in hc_pairs
         term_expr = coeff * QuExpr(Dict(term => 1))
         term_str = string(normal_form(term_expr))
         push!(parts, "(" * term_str * " + h.c.)")
     end
-    
+
     result = join(parts, " + ")
-    
+
     # Clean up display
     result = replace(result, "+ -" => "- ")
     result = replace(result, "+ (-" => "- (")
-    
+
     if !isempty(name)
         result = name * " = " * result
     end
-    
+
     println(result)
     return result
 end
@@ -471,13 +472,13 @@ function print_compact(result::NamedTuple; simplify_coeff::Bool = true)
     println("Generator:")
     print_compact(result.S; name = "S", simplify_coeff)
     println()
-    
+
     println("Effective Hamiltonian:")
     print_compact(result.H_eff; name = "H_eff", simplify_coeff)
     println()
-    
+
     println("Projected to subspace P:")
     print_compact(result.H_P; name = "H_P", simplify_coeff)
-    
+
     return nothing
 end

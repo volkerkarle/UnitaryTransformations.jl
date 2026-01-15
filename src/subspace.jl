@@ -401,14 +401,14 @@ A diagonal transition has i == j, i.e., gen_idx = (i-1)*N + i.
 """
 function is_diagonal_transition(op::BaseOperator)
     op.t == Transition_ || return false
-    
+
     N = Int(op.algebra_id)
     gen_idx = Int(op.gen_idx)
-    
+
     # Extract i and j from gen_idx = (i-1)*N + j
     i = (gen_idx - 1) ÷ N + 1
     j = (gen_idx - 1) % N + 1
-    
+
     return i == j
 end
 
@@ -420,13 +420,13 @@ Returns (i, j) tuple or nothing if not a transition operator.
 """
 function get_transition_indices(op::BaseOperator)
     op.t == Transition_ || return nothing
-    
+
     N = Int(op.algebra_id)
     gen_idx = Int(op.gen_idx)
-    
+
     i = (gen_idx - 1) ÷ N + 1
     j = (gen_idx - 1) % N + 1
-    
+
     return (i, j)
 end
 
@@ -449,16 +449,10 @@ function get_transition_constraint_info(c::OperatorConstraint)
 
     term, _ = first(c.operator.terms)
     bare = term.bares.v[1]
-    
+
     N = Int(bare.algebra_id)
     i, j = get_transition_indices(bare)
-    
+
     # For diagonal transitions, i == j
-    return (
-        name = bare.name,
-        inds = bare.inds,
-        N = N,
-        state = i,
-        eigenvalue = c.eigenvalue,
-    )
+    return (name = bare.name, inds = bare.inds, N = N, state = i, eigenvalue = c.eigenvalue)
 end

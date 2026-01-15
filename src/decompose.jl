@@ -203,16 +203,16 @@ function classify_transition_for_constraint(
 )
     indices = get_transition_indices(op)
     indices === nothing && return DIAGONAL
-    
+
     i, j = indices
     constrained_state = trans_info.state
     eigenvalue = trans_info.eigenvalue
-    
+
     # Diagonal transitions are always diagonal
     if i == j
         return DIAGONAL
     end
-    
+
     # Off-diagonal: |i⟩⟨j| takes state j to state i
     # For eigenvalue == 1 (we ARE in state k):
     if eigenvalue == 1
@@ -224,7 +224,7 @@ function classify_transition_for_constraint(
             # (from perspective of state k, this brings population in)
             return RAISING
         end
-    # For eigenvalue == 0 (we are NOT in state k):
+        # For eigenvalue == 0 (we are NOT in state k):
     elseif eigenvalue == 0
         if i == constrained_state && j != constrained_state
             # |k⟩⟨m| takes us INTO state k → RAISING
@@ -234,7 +234,7 @@ function classify_transition_for_constraint(
             return LOWERING
         end
     end
-    
+
     # Operator doesn't involve the constrained state - transparent
     return DIAGONAL
 end
