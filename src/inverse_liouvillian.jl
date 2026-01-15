@@ -44,6 +44,7 @@ using QuantumAlgebra:
 
 using Symbolics
 using Symbolics: Num, @variables, simplify_fractions
+using LinearAlgebra
 
 # Cache for parameter -> Symbolics variable mapping
 const _param_cache = Dict{String,Num}()
@@ -478,19 +479,14 @@ function cartan_weyl_to_gellmann(
 end
 
 """
-    solve_for_generator_lie(H_d::QuExpr, V_od::QuExpr, N::Int, generators::Tuple; 
+    solve_for_generator_lie(H_d::QuExpr, V_od::QuExpr, N::Int, generators::Tuple;
                             algebra_id=SU3_ALGEBRA_ID)
 
-Solve [S, H_d] = -V_od for the generator S using the matrix-element method.
+Solve [S, H_d] = -V_od for the generator S by building the commutator matrix
+in the off-diagonal generator basis and solving a linear system.
 
-This approach works for any SU(N) Lie algebra by:
-1. Computing energy eigenvalues E_i from H_d
-2. Converting V_od to Cartan-Weyl basis (transition operators |i⟩⟨j|)
-3. Applying the fundamental formula: S_{ij} = V_{ij} / (E_i - E_j)
-4. Converting S back to Gell-Mann basis
-
-The key insight is that transition operators |i⟩⟨j| ARE eigenoperators:
-    [H_d, |i⟩⟨j|] = (E_i - E_j)|i⟩⟨j|
+This matches QuantumAlgebra's normal-form commutator semantics, which can
+differ from the ideal matrix-element method for SU(3).
 
 # Arguments
 - `H_d`: The diagonal Hamiltonian (in diagonal generators only)
@@ -509,25 +505,57 @@ function solve_for_generator_lie(
     generators::Tuple;
     algebra_id::UInt16 = SU3_ALGEBRA_ID,
 )
-    # Step 1: Compute energy eigenvalues
-    E = compute_energy_eigenvalues(H_d, N, algebra_id)
+    offdiag_count = N^2 - N
+    offdiag_indices = collect(1:offdiag_count)
+    index_to_pos = Dict(idx => pos for (pos, idx) in enumerate(offdiag_indices))
 
-    # Step 2: Convert V_od to transition basis
-    V_transitions = gellmann_to_cartan_weyl(V_od, N, algebra_id)
-
-    # Step 3: Apply inverse Liouvillian in transition basis
-    # S_{ij} = V_{ij} / (E_i - E_j)
-    S_transitions = Dict{Tuple{Int,Int},Any}()
-
-    for ((i, j), V_ij) in V_transitions
-        denominator = E[i] - E[j]
-        S_transitions[(i, j)] = V_ij / denominator
+    function to_complex_num(value)
+        if value isa Complex
+            real_part = real(value)
+            imag_part = imag(value)
+            real_num = real_part isa Num ? real_part : Num(real_part)
+            imag_num = imag_part isa Num ? imag_part : Num(imag_part)
+            return Complex{Num}(real_num, imag_num)
+        elseif value isa Num
+            return Complex{Num}(value, 0)
+        end
+        return Complex{Num}(Num(value), 0)
     end
 
-    # Step 4: Convert S back to Gell-Mann basis
-    S = cartan_weyl_to_gellmann(S_transitions, N, generators)
+    function coeff_vector(expr::QuExpr)
+        vec = [Complex{Num}(0, 0) for _ = 1:length(offdiag_indices)]
+        for (term, coeff) in expr.terms
+            length(term.bares.v) == 1 || continue
+            bare = term.bares.v[1]
+            bare.t == LieAlgebraGen_ || continue
+            bare.algebra_id == algebra_id || continue
+            gen_idx = Int(bare.gen_idx)
+            haskey(index_to_pos, gen_idx) || continue
+            pos = index_to_pos[gen_idx]
+            vec[pos] += to_complex_num(symbolic_coefficient(term, coeff))
+        end
+        return vec
+    end
 
-    return S
+    basis = [generators[idx] for idx in offdiag_indices]
+    matrix = [Complex{Num}(0, 0) for _ = 1:length(basis), _ = 1:length(basis)]
+    for (col, gen) in enumerate(basis)
+        comm_vec = coeff_vector(normal_form(comm(gen, H_d)))
+        for row = 1:length(basis)
+            matrix[row, col] = comm_vec[row]
+        end
+    end
+
+    rhs = coeff_vector(V_od)
+    coeffs = matrix \ (-rhs)
+
+    S = zero(QuExpr)
+    for (coeff, gen_idx) in zip(coeffs, offdiag_indices)
+        iszero(coeff) && continue
+        S += coeff * generators[gen_idx]
+    end
+
+    return normal_form(S)
 end
 
 # =============================================================================

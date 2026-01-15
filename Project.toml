@@ -5,6 +5,7 @@ authors = ["Volker Karle"]
 
 [deps]
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 QuantumAlgebra = "1b9008d5-2a9d-4901-8cfb-44bb87795b64"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 

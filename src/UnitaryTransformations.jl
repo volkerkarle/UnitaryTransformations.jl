@@ -38,21 +38,6 @@ using QuantumAlgebra:
 
 using Symbolics: Num, unwrap
 
-# Override iszero for Symbolics.Num to avoid expensive polynomial computations
-# that occur when QuantumAlgebra's normal_form checks for zero coefficients.
-# This is safe because we conservatively return false for symbolic expressions,
-# meaning we may keep some zero terms but won't incorrectly discard non-zero terms.
-function Base.iszero(x::Num)
-    u = unwrap(x)
-    # Only return true for literal numeric zero
-    if u isa Number
-        return iszero(u)
-    end
-    # For symbolic expressions, conservatively say not zero
-    # The final simplify_coefficients will handle actual zeros
-    return false
-end
-
 # Re-export commonly used QuantumAlgebra functions
 export comm, normal_form
 
