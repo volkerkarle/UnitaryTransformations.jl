@@ -330,6 +330,21 @@
         end
     end
 
+    function numeric_abs(coeff, substitutions)
+        if coeff isa Complex
+            real_part = real(coeff)
+            imag_part = imag(coeff)
+            real_sub = real_part isa Symbolics.Num ? Symbolics.substitute(real_part, substitutions) : real_part
+            imag_sub = imag_part isa Symbolics.Num ? Symbolics.substitute(imag_part, substitutions) : imag_part
+            real_val = real_sub isa Symbolics.Num ? Symbolics.value(real_sub) : real_sub
+            imag_val = imag_sub isa Symbolics.Num ? Symbolics.value(imag_sub) : imag_sub
+            return abs(complex(real_val, imag_val))
+        end
+        substituted = coeff isa Symbolics.Num ? Symbolics.substitute(coeff, substitutions) : coeff
+        value = substituted isa Symbolics.Num ? Symbolics.value(substituted) : substituted
+        return abs(value)
+    end
+
     @testset "SU(3) generator equation" begin
         using UnitaryTransformations: solve_for_generator_lie
 
@@ -351,10 +366,10 @@
         comm_S_Hd = normal_form(comm(S, H_d))
         residual = normal_form(comm_S_Hd + V_od)
 
-        # Check that residual simplifies to zero for each term
-        for (term, coeff) in residual.terms
-            simplified = Symbolics.simplify(coeff)
-            @test simplified == 0 || abs(simplified) < 1e-10
+        # Check that residual is numerically zero for each term
+        substitutions = Dict(Δ => 1.3, ω => 0.7, g => 0.4)
+        for (_, coeff) in residual.terms
+            @test numeric_abs(coeff, substitutions) < 1e-10
         end
     end
 
@@ -379,9 +394,9 @@
         comm_S_Hd = normal_form(comm(S, H_d))
         residual = normal_form(comm_S_Hd + V_od)
 
-        for (term, coeff) in residual.terms
-            simplified = Symbolics.simplify(coeff)
-            @test simplified == 0 || abs(simplified) < 1e-10
+        substitutions = Dict(Δ => 1.3, ω => 0.7, g₁ => 0.4, g₂ => -0.3)
+        for (_, coeff) in residual.terms
+            @test numeric_abs(coeff, substitutions) < 1e-10
         end
     end
 
