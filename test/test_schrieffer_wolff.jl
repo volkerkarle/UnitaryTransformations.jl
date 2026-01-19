@@ -334,13 +334,18 @@
         if coeff isa Complex
             real_part = real(coeff)
             imag_part = imag(coeff)
-            real_sub = real_part isa Symbolics.Num ? Symbolics.substitute(real_part, substitutions) : real_part
-            imag_sub = imag_part isa Symbolics.Num ? Symbolics.substitute(imag_part, substitutions) : imag_part
+            real_sub =
+                real_part isa Symbolics.Num ?
+                Symbolics.substitute(real_part, substitutions) : real_part
+            imag_sub =
+                imag_part isa Symbolics.Num ?
+                Symbolics.substitute(imag_part, substitutions) : imag_part
             real_val = real_sub isa Symbolics.Num ? Symbolics.value(real_sub) : real_sub
             imag_val = imag_sub isa Symbolics.Num ? Symbolics.value(imag_sub) : imag_sub
             return abs(complex(real_val, imag_val))
         end
-        substituted = coeff isa Symbolics.Num ? Symbolics.substitute(coeff, substitutions) : coeff
+        substituted =
+            coeff isa Symbolics.Num ? Symbolics.substitute(coeff, substitutions) : coeff
         value = substituted isa Symbolics.Num ? Symbolics.value(substituted) : substituted
         return abs(value)
     end
