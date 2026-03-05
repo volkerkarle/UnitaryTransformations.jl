@@ -139,12 +139,12 @@ println("Effective cavity Hamiltonian when rotor is in ground state.")
 P_L0 = Subspace(L[1, 1] => 1)
 
 result_L0_o2 = schrieffer_wolff(H, P_L0; order = 2, simplify_mode = :fractions)
+# Use full SW (diagonal_only=false) to capture Q↔Q virtual paths (e.g., L=1↔2)
 result_L0_o4 = schrieffer_wolff(
     H,
     P_L0;
     order = 4,
     simplify_mode = :fast,
-    diagonal_only = true,
     parallel = true,
 )
 

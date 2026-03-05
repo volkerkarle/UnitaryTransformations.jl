@@ -51,7 +51,65 @@ function _simplify_expand_only(expr::QuExpr)
 end
 
 """
-    schrieffer_wolff(H::QuExpr, P::Subspace; order::Int=2)
+    _transition_constraint_infos(P::Subspace)
+
+Collect transition constraint info for include_QQ handling.
+"""
+function _transition_constraint_infos(P::Subspace)
+    infos = NamedTuple[]
+    for constraint in P.constraints
+        info = get_transition_constraint_info(constraint)
+        if info !== nothing
+            push!(infos, info)
+        end
+    end
+    return infos
+end
+
+"""
+    _term_has_QQ_transition(term::QuTerm, transition_infos)
+
+Return true if a term contains an off-diagonal transition operator that does
+not involve the constrained state (eigenvalue == 1), i.e., a Q↔Q coupling.
+"""
+function _term_has_QQ_transition(term::QuTerm, transition_infos)
+    isempty(transition_infos) && return false
+    for op in term.bares.v
+        op.t == Transition_ || continue
+        indices = get_transition_indices(op)
+        indices === nothing && continue
+        i, j = indices
+        i == j && continue
+        for info in transition_infos
+            if op.name == info.name && op.inds == info.inds
+                if info.eigenvalue == 1 && i != info.state && j != info.state
+                    return true
+                end
+            end
+        end
+    end
+    return false
+end
+
+"""
+    _extract_QQ_terms(H_d::QuExpr, P::Subspace)
+
+Extract block-diagonal terms that couple within Q for transition constraints.
+"""
+function _extract_QQ_terms(H_d::QuExpr, P::Subspace)
+    transition_infos = _transition_constraint_infos(P)
+    isempty(transition_infos) && return QuExpr()
+    result_terms = Dict{QuTerm,Number}()
+    for (term, coeff) in H_d.terms
+        if _term_has_QQ_transition(term, transition_infos)
+            result_terms[term] = coeff
+        end
+    end
+    return QuExpr(result_terms)
+end
+
+"""
+    schrieffer_wolff(H::QuExpr, P::Subspace; order::Int=2, include_QQ::Bool=true, ...)
 
 Perform the Schrieffer-Wolff transformation on Hamiltonian H with respect 
 to the low-energy subspace P.
@@ -76,7 +134,12 @@ in perturbation theory.
   - `:aggressive` - Full simplification (slowest)
 - `diagonal_only`: If true, only compute H_eff (skip computing higher-order generators).
   This is much faster for high orders when you only need the effective Hamiltonian.
-  Note: This uses a simplified algorithm that only uses S₁.
+  Note: This uses a simplified algorithm that only uses S₁; with `include_QQ=true`,
+  it will not include Q↔Q virtual paths.
+- `include_QQ`: If true (default), treat block-diagonal couplings within Q (e.g.,
+  off-diagonal transition operators that do not involve the constrained state)
+  as perturbations. This captures virtual paths like P→Q→Q→P at higher order.
+  Set to false to use the legacy behavior (expand only in P↔Q couplings).
 - `parallel`: If true, use multi-threading for orders > 3 (default: false).
   Requires Julia to be started with multiple threads (e.g., `julia -t 4`).
   For best performance, use 4-8 threads; more threads can cause lock contention.
@@ -123,6 +186,7 @@ function schrieffer_wolff(
     simplify_generator::Bool = false,
     simplify_mode::Symbol = :fast,
     diagonal_only::Bool = false,
+    include_QQ::Bool = true,
     parallel::Bool = false,
 )
     order >= 2 || throw(ArgumentError("order must be at least 2, got $order"))
@@ -130,26 +194,40 @@ function schrieffer_wolff(
     # Normalize the Hamiltonian first
     H = normal_form(H)
 
-    # Decompose H = H₀ (diagonal) + V (off-diagonal)
-    H0, V = decompose(H, P)
+    # Decompose H = H_d (block-diagonal) + H_od (P↔Q couplings)
+    H_d, H_od = decompose(H, P)
 
     # Use optimized diagonal-only algorithm if requested
     if diagonal_only
-        return _schrieffer_wolff_diagonal_only(H, H0, V, P, order, simplify_mode)
+        return _schrieffer_wolff_diagonal_only(H, H_d, H_od, P, order, simplify_mode)
     end
+
+    # Optionally treat Q↔Q couplings as perturbations
+    H0 = H_d
+    V_total = H_od
+    if include_QQ
+        V_QQ = _extract_QQ_terms(H_d, P)
+        if !isempty(V_QQ.terms)
+            H0 = normal_form(H_d - V_QQ)
+            V_total = normal_form(H_od + V_QQ)
+        end
+    end
+
+    # Split perturbation into diagonal and off-diagonal parts
+    V_diag, V_od1 = decompose(V_total, P)
 
     # Store generators at each order: S[n] = Sₙ (order gⁿ)
     S = Vector{QuExpr}(undef, order)
 
     # Store off-diagonal "potentials" that each Sₙ must cancel: Vₙ where [Sₙ, H₀] = -Vₙ
     V_od = Vector{QuExpr}(undef, order)
-    V_od[1] = V  # V₁ = V (the original off-diagonal part)
+    V_od[1] = V_od1  # V₁ = off-diagonal part of perturbation
 
     # Initialize effective Hamiltonian with diagonal part
-    H_eff = H0
+    H_eff = normal_form(H0 + V_diag)
 
     # ========== Order 1: [S₁, H₀] = -V ==========
-    S[1] = solve_for_generator(H0, V, P)
+    S[1] = solve_for_generator(H0, V_od1, P)
 
     # ========== Order 2 and beyond ==========
     for n = 2:order
@@ -158,7 +236,7 @@ function schrieffer_wolff(
         # with S = S₁ + S₂ + ... + Sₙ₋₁ (Sₙ not yet determined)
 
         order_n_terms =
-            _collect_bch_terms_at_order(S, V_od, n, H0, V, P; parallel = parallel)
+            _collect_bch_terms_at_order(S, V_od, n, H0, V_total, P; parallel = parallel)
         # Simplify incrementally to prevent expression explosion
         # Use expand-only simplification which is fast but effective
         order_n_terms = _simplify_expand_only(order_n_terms)
@@ -420,7 +498,7 @@ function _collect_bch_terms_at_order(
 end
 
 """
-    sw_generator(H::QuExpr, P::Subspace; order::Int=1)
+    sw_generator(H::QuExpr, P::Subspace; order::Int=1, include_QQ::Bool=true)
 
 Compute only the generator S for the Schrieffer-Wolff transformation,
 without computing the full effective Hamiltonian.
@@ -428,19 +506,34 @@ without computing the full effective Hamiltonian.
 This is useful when you only need S, or want to manually compute
 the transformation using `bch_transform`.
 """
-function sw_generator(H::QuExpr, P::Subspace; order::Int = 1)
+function sw_generator(
+    H::QuExpr,
+    P::Subspace;
+    order::Int = 1,
+    include_QQ::Bool = true,
+)
     H = normal_form(H)
     H_d, H_od = decompose(H, P)
 
+    H0 = H_d
+    V_total = H_od
+    if include_QQ
+        V_QQ = _extract_QQ_terms(H_d, P)
+        if !isempty(V_QQ.terms)
+            H0 = normal_form(H_d - V_QQ)
+            V_total = normal_form(H_od + V_QQ)
+        end
+    end
+
     S_total = QuExpr()
-    current_od = H_od
+    _, current_od = decompose(V_total, P)
 
     for n = 1:order
         if isempty(current_od.terms)
             break
         end
 
-        S_n = solve_for_generator(H_d, current_od, P)
+        S_n = solve_for_generator(H0, current_od, P)
         S_total = simplify_coefficients(normal_form(S_total + S_n))
 
         if n < order
@@ -1001,6 +1094,7 @@ result = schrieffer_wolff(H, P; order=2)
 - Currently only supports order=2 for SymExpr inputs
 - The effective Hamiltonian includes both same-site and cross-site terms
 - For higher orders, expand the SymSum to explicit indices first
+ - `include_QQ` affects only QuExpr inputs (ignored here)
 """
 function schrieffer_wolff(
     H::SymExpr,
@@ -1009,6 +1103,7 @@ function schrieffer_wolff(
     simplify_generator::Bool = false,
     simplify_mode::Symbol = :fast,
     diagonal_only::Bool = false,
+    include_QQ::Bool = true,
     parallel::Bool = false,
 )
     order >= 2 || throw(ArgumentError("order must be at least 2, got $order"))

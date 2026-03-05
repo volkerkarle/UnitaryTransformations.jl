@@ -532,6 +532,30 @@
         @test length(result.H_eff.terms) > length(H_d.terms)
     end
 
+    @testset "include_QQ captures Q-Q virtual paths" begin
+        # 3-level system with sequential couplings: 0↔1 and 1↔2
+        L = nlevel_ops(3, :L)
+
+        @variables Δ g c01 c12
+
+        H0 = 0 * L[1, 1] + Δ * L[2, 2] + 2Δ * L[3, 3]
+        V = g * (c01 * (L[1, 2] + L[2, 1]) + c12 * (L[2, 3] + L[3, 2]))
+        H = normal_form(H0 + V)
+
+        P = Subspace(L[1, 1] => 1)
+
+        result_inc = schrieffer_wolff(H, P; order = 4, include_QQ = true)
+        result_exc = schrieffer_wolff(H, P; order = 4, include_QQ = false)
+
+        coeffs_inc = [coeff for (_, coeff) in result_inc.H_P.terms]
+        has_c12 = any(c -> occursin("c12", string(c)), coeffs_inc)
+        @test has_c12
+
+        coeffs_exc = [coeff for (_, coeff) in result_exc.H_P.terms]
+        has_c12_exc = any(c -> occursin("c12", string(c)), coeffs_exc)
+        @test !has_c12_exc
+    end
+
     @testset "4th order SW - Kerr nonlinearity" begin
         # Test that 4th order SW produces Kerr terms (a†²a²)
         # For Rabi model in dispersive regime
