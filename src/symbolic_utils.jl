@@ -135,7 +135,7 @@ function substitute_values(expr::QuExpr, values::Dict{Symbol,T}) where {T<:Numbe
 end
 
 """
-    extract_coefficient(expr::QuExpr, target_ops::QuExpr)
+    extract_coefficient(expr::QuExpr, target_ops::QuExpr; simplify_coeff::Bool=true)
 
 Extract the coefficient of a specific operator structure from a QuExpr.
 
@@ -146,7 +146,11 @@ Extract the coefficient of a specific operator structure from a QuExpr.
 # Returns
 - The coefficient (Num or Number) if found, nothing otherwise
 """
-function extract_coefficient(expr::QuExpr, target_ops::QuExpr)
+function extract_coefficient(
+    expr::QuExpr,
+    target_ops::QuExpr;
+    simplify_coeff::Bool = true,
+)
     target_norm = normal_form(target_ops)
 
     # Get the bare operator structure from target
@@ -162,7 +166,10 @@ function extract_coefficient(expr::QuExpr, target_ops::QuExpr)
             for p in term.params
                 full_coeff = full_coeff * param_to_symbolic(p)
             end
-            return full_coeff isa Num ? simplify(full_coeff) : full_coeff
+            if full_coeff isa Num && simplify_coeff
+                return simplify(full_coeff)
+            end
+            return full_coeff
         end
     end
 
