@@ -7,13 +7,106 @@ quantum expressions that use Symbolics.jl for symbolic manipulation.
 
 export simplify_coefficients, substitute_values, extract_coefficient, collect_terms
 export to_latex, print_latex, show_result
+export format_expression, write_expression_dump
 
 using QuantumAlgebra
 using QuantumAlgebra: QuExpr, QuTerm, Param, normal_form
 
 using Symbolics
-using Symbolics: Num, simplify, simplify_fractions
+using Symbolics: Num, simplify, simplify_fractions, expand
 using Symbolics.SymbolicUtils: Postwalk
+
+const _TRANSITION_LATEX_MAP = Dict(
+    "L¹¹" => "L_{11}",
+    "L¹²" => "L_{12}",
+    "L¹³" => "L_{13}",
+    "L²¹" => "L_{21}",
+    "L²²" => "L_{22}",
+    "L²³" => "L_{23}",
+    "L³¹" => "L_{31}",
+    "L³²" => "L_{32}",
+    "L³³" => "L_{33}",
+)
+
+"""
+    format_expression(expr; mode::Symbol=:unicode)
+
+Format a symbolic quantum expression as a plain string in one of two modes:
+- `:unicode`: keeps Greek Unicode symbols and uses `a'()` (no `\\dagger`)
+- `:latex`: converts to ASCII-friendly LaTeX (`\\Delta`, `a^{\\dagger}`, `g_{1}`, ...)
+"""
+function format_expression(expr::Union{QuExpr,AbstractString}; mode::Symbol = :unicode)
+    t = expr isa QuExpr ? string(expr) : String(expr)
+
+    if mode == :unicode
+        return replace(t, "a†()" => "a'()")
+    elseif mode == :latex
+        t = replace(t, r"([0-9]+)//([0-9]+)" => s"\\frac{\1}{\2}")
+        t = replace(t, "a†()" => "a^{\\dagger}")
+        t = replace(t, "a()" => "a")
+        t = replace(t, "Δ" => "\\Delta")
+        t = replace(t, "δ" => "\\delta")
+        t = replace(t, "ω" => "\\omega")
+        t = replace(t, "g1" => "g_{1}")
+        t = replace(t, "g2" => "g_{2}")
+        for (src, dst) in _TRANSITION_LATEX_MAP
+            t = replace(t, src => dst)
+        end
+        return t
+    else
+        throw(ArgumentError("Unknown mode: $mode. Expected :unicode or :latex."))
+    end
+end
+
+"""
+    write_expression_dump(filepath, sections; mode=:unicode, tex=false, header=String[])
+
+Write a set of named expression sections to disk.
+
+# Arguments
+- `filepath`: output path
+- `sections`: vector of `"Section name" => expr` pairs (`expr` can be `QuExpr` or `String`)
+- `mode`: `:unicode` or `:latex` formatting mode (see `format_expression`)
+- `tex`: when `true`, writes `\\section*{...}` blocks with display math
+- `header`: optional header/comment lines
+"""
+function write_expression_dump(
+    filepath::AbstractString,
+    sections::Vector{<:Pair};
+    mode::Symbol = :unicode,
+    tex::Bool = false,
+    header::Vector{String} = String[],
+)
+    if tex && mode != :latex
+        throw(ArgumentError("tex=true requires mode=:latex"))
+    end
+
+    open(filepath, "w") do io
+        for line in header
+            println(io, line)
+        end
+        if !isempty(header)
+            println(io)
+        end
+
+        for (name, expr) in sections
+            formatted = format_expression(expr; mode)
+            if tex
+                println(io, "\\section*{$name}")
+                println(io, "\\[")
+                println(io, formatted)
+                println(io, "\\]")
+                println(io)
+            else
+                println(io, "[$name]")
+                println(io, formatted)
+                println(io)
+            end
+        end
+    end
+
+    return filepath
+end
 
 """
     simplify_coefficients(expr::QuExpr; mode::Symbol=:fast)
