@@ -154,4 +154,91 @@
             end
         end
     end
-end
+
+    @testset "get_spin_constraint_info" begin
+        using UnitaryTransformations: get_spin_constraint_info, OperatorConstraint, is_spin_constraint
+        QuantumAlgebra.use_σpm(true)
+        c1 = OperatorConstraint(σz(), -1)
+        info1 = get_spin_constraint_info(c1)
+        @test info1 !== nothing
+        name1, inds1, is_down1 = info1
+        @test is_down1 == true
+        c2 = OperatorConstraint(σz(), 1)
+        info2 = get_spin_constraint_info(c2)
+        @test info2 !== nothing
+        _, _, is_down2 = info2
+        @test is_down2 == false
+        QuantumAlgebra.use_σpm(false)
+    end
+
+    @testset "is_spin_constraint edge cases" begin
+        # Non-spin operators
+        c = UnitaryTransformations.OperatorConstraint(a'() * a(), 0)
+        @test !UnitaryTransformations.is_spin_constraint(c)
+        
+        # Boson creation operator is not a spin constraint
+        c2 = UnitaryTransformations.OperatorConstraint(a'(), 1)
+        @test !UnitaryTransformations.is_spin_constraint(c2)
+    end
+
+    @testset "Fermion number constraints" begin
+        using UnitaryTransformations: OperatorConstraint, is_number_constraint
+        QuantumAlgebra.@fermion_ops e
+        c = OperatorConstraint(e'() * e(), 1)
+        @test is_number_constraint(c)
+        c2 = OperatorConstraint(e'() * e(), 0)
+        @test is_number_constraint(c2)
+        c3 = OperatorConstraint(e'(), 1)
+        @test !is_number_constraint(c3)
+    end
+
+    @testset "Transition operator constraints" begin
+        ops = nlevel_ops(3, :a)
+        
+        # |1⟩⟨1| projector → eigenvalue 1
+        c = UnitaryTransformations.OperatorConstraint(ops[1, 1], 1)
+        @test UnitaryTransformations.is_transition_constraint(c)
+        
+        info = UnitaryTransformations.get_transition_constraint_info(c)
+        @test info !== nothing
+        @test info.state == 1
+        
+        # Non-projector transition operator (|1⟩⟨2|) is not a constraint
+        c2 = UnitaryTransformations.OperatorConstraint(ops[1, 2], 1)
+        @test !UnitaryTransformations.is_transition_constraint(c2)
+        
+        # Bosonic operator is not a transition constraint
+        c3 = UnitaryTransformations.OperatorConstraint(a'() * a(), 0)
+        @test !UnitaryTransformations.is_transition_constraint(c3)
+        @test UnitaryTransformations.get_transition_constraint_info(c3) === nothing
+    end
+
+    @testset "Lie algebra constraint info" begin
+        gens = su_generators(2, :λ)
+        
+        # λ₃ (diagonal, σz/2) constraint
+        c = UnitaryTransformations.OperatorConstraint(gens[3], -1//2)
+        @test UnitaryTransformations.is_lie_algebra_constraint(c)
+        
+        info = UnitaryTransformations.get_lie_algebra_constraint_info(c)
+        @test info !== nothing
+        
+        # Non-diagonal Lie generator is not a constraint
+        c2 = UnitaryTransformations.OperatorConstraint(gens[1], 1//2)
+        @test !UnitaryTransformations.is_lie_algebra_constraint(c2)
+    end
+
+    @testset "Subspace edge cases" begin
+        # Empty subspace
+        P_empty = UnitaryTransformations.Subspace()
+        @test length(P_empty.constraints) == 0
+        
+        # Multiple independent constraints
+        P_multi = UnitaryTransformations.Subspace(σz() => -1, a'() * a() => 0)
+        @test length(P_multi.constraints) == 2
+        
+        # Indexed operators
+        P_idx = UnitaryTransformations.Subspace(σz(:i) => -1, σz(:j) => 1)
+        @test length(P_idx.constraints) == 2
+    end
+end  # @testset "Subspace"

@@ -23,8 +23,11 @@ using Test
 
     # Include specific test files
     include("test_subspace.jl")
+    include("test_decompose.jl")
+    include("test_inverse_liouvillian.jl")
     include("test_commutator_series.jl")
     include("test_schrieffer_wolff.jl")
     include("test_magnus.jl")
     include("test_magnus_comprehensive.jl")
+    include("test_symbolic_utils.jl")
 end

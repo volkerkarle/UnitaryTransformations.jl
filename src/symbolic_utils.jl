@@ -28,6 +28,21 @@ const _TRANSITION_LATEX_MAP = Dict(
     "L³³" => "L_{33}",
 )
 
+function _unicode_power_digits(s::String)
+    t = s
+    t = replace(t, "^0" => "⁰")
+    t = replace(t, "^1" => "¹")
+    t = replace(t, "^2" => "²")
+    t = replace(t, "^3" => "³")
+    t = replace(t, "^4" => "⁴")
+    t = replace(t, "^5" => "⁵")
+    t = replace(t, "^6" => "⁶")
+    t = replace(t, "^7" => "⁷")
+    t = replace(t, "^8" => "⁸")
+    t = replace(t, "^9" => "⁹")
+    return t
+end
+
 """
     format_expression(expr; mode::Symbol=:unicode)
 
@@ -39,7 +54,18 @@ function format_expression(expr::Union{QuExpr,AbstractString}; mode::Symbol = :u
     t = expr isa QuExpr ? string(expr) : String(expr)
 
     if mode == :unicode
-        return replace(t, "a†()" => "a'()")
+        t = replace(t, r"([0-9]+)//([0-9]+)" => s"\1/\2")
+        t = replace(t, "a†()" => "a'")
+        t = replace(t, "a()" => "a")
+        t = replace(t, "g1" => "g₁")
+        t = replace(t, "g2" => "g₂")
+        t = replace(t, "d1" => "d₁")
+        t = replace(t, "d3" => "d₃")
+        t = replace(t, "H_P" => "Hₚ")
+        t = replace(t, "H_eff" => "Hₑff")
+        t = _unicode_power_digits(t)
+        t = replace(t, "*" => " ⋅ ")
+        return t
     elseif mode == :latex
         t = replace(t, r"([0-9]+)//([0-9]+)" => s"\\frac{\1}{\2}")
         t = replace(t, "a†()" => "a^{\\dagger}")

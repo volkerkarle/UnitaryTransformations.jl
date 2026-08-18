@@ -4,23 +4,17 @@ version = "0.1.0"
 authors = ["Volker Karle"]
 
 [deps]
-CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
-KrylovKit = "0b1a1467-8014-51b9-945f-bf0ae24f4b77"
 LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
-PyPlot = "d330b81b-6aea-500a-939a-2ce795aea3ee"
 QuantumAlgebra = "1b9008d5-2a9d-4901-8cfb-44bb87795b64"
 Symbolics = "0c5d862f-8b57-4792-8d23-62f2024744c7"
 
 [sources]
-QuantumAlgebra = { url = "https://github.com/volkerkarle/QuantumAlgebra.jl" }
+QuantumAlgebra = {url = "https://github.com/volkerkarle/QuantumAlgebra.jl"}
 
 [compat]
-CairoMakie = "0.15.8"
-KrylovKit = "0.7, 0.8"
-PyPlot = "2"
 QuantumAlgebra = "1.6, 1"
 Symbolics = "5, 6"
-julia = "1.12"
+julia = "1.10"
 
 [extras]
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"

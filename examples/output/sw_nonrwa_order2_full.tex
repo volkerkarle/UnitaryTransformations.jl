@@ -1,0 +1,38 @@
+% 3-level NON-RWA ladder + cavity SW (include_QQ=true)
+% Projection: L11 => 1
+% Order: 2
+% Coupling: g1(L12+L21)(a+a†) + g2(L23+L32)(a+a†)
+% Variables: \Delta, \delta, \omega, g_1, g_2
+% Detunings: d_1 = \Delta - \omega, d_3 = \Delta + \delta - 2\omega
+% Substitution: \Delta => d_1 + \omega, \delta => d_3 - d_1 + \omega
+
+\section*{Input Hamiltonian}
+\[
+H = \Delta L_{22} + (\Delta + \delta) L_{33} + \omega a^{\dagger} a + g_{1} a^{\dagger} L_{12} + g_{1} a^{\dagger} L_{21} + g_{2} a^{\dagger} L_{23} + g_{2} a^{\dagger} L_{32} + g_{1} a L_{12} + g_{1} a L_{21} + g_{2} a L_{23} + g_{2} a L_{32}
+\]
+
+\section*{Generator}
+\[
+S = <not loaded>
+\]
+
+\section*{Effective Hamiltonian (raw)}
+\[
+H_{\mathrm{eff}} = 0
+\]
+
+\section*{Effective Hamiltonian (detuning vars)}
+\[
+H_{\mathrm{eff}} = 0
+\]
+
+\section*{Projected Hamiltonian (raw)}
+\[
+H_P = ((-(g_{1}^2)) / (\Delta + \omega) + (\frac{1}{2})*((-(g_{1}^2)) / (-\Delta - \omega) + (g_{1}^2) / (\Delta + \omega)) + (g_{1}^2) / (-\Delta - \omega)) + ((-(g_{1}^2)) / (\Delta + \omega) + (g_{1}^2) / (-\Delta + \omega) + (\frac{1}{2})*((-(g_{1}^2)) / (-\Delta + \omega) + (g_{1}^2) / (\Delta + \omega))) a^{\dagger}² + ((-(g_{1}^2)) / (\Delta + \omega) + (\frac{1}{2})*((g_{1}^2) / (\Delta - \omega) + (-(g_{1}^2)) / (-\Delta + \omega) + (-(g_{1}^2)) / (-\Delta - \omega) + (g_{1}^2) / (\Delta + \omega)) + (-(g_{1}^2)) / (\Delta - \omega) + (g_{1}^2) / (-\Delta + \omega) + (g_{1}^2) / (-\Delta - \omega) + \omega) a^{\dagger} a + ((\frac{1}{2})*((g_{1}^2) / (\Delta - \omega) + (-(g_{1}^2)) / (-\Delta - \omega)) + (-(g_{1}^2)) / (\Delta - \omega) + (g_{1}^2) / (-\Delta - \omega)) a²
+\]
+
+\section*{Projected Hamiltonian (detuning vars)}
+\[
+H_P = ((-(g_{1}^2)) / (\Delta + \omega) + (\frac{1}{2})*((-(g_{1}^2)) / (-\Delta - \omega) + (g_{1}^2) / (\Delta + \omega)) + (g_{1}^2) / (-\Delta - \omega)) + ((-(g_{1}^2)) / (\Delta + \omega) + (g_{1}^2) / (-\Delta + \omega) + (\frac{1}{2})*((-(g_{1}^2)) / (-\Delta + \omega) + (g_{1}^2) / (\Delta + \omega))) a^{\dagger}² + ((-(g_{1}^2)) / (\Delta + \omega) + (\frac{1}{2})*((g_{1}^2) / (\Delta - \omega) + (-(g_{1}^2)) / (-\Delta + \omega) + (-(g_{1}^2)) / (-\Delta - \omega) + (g_{1}^2) / (\Delta + \omega)) + (-(g_{1}^2)) / (\Delta - \omega) + (g_{1}^2) / (-\Delta + \omega) + (g_{1}^2) / (-\Delta - \omega) + \omega) a^{\dagger} a + ((\frac{1}{2})*((g_{1}^2) / (\Delta - \omega) + (-(g_{1}^2)) / (-\Delta - \omega)) + (-(g_{1}^2)) / (\Delta - \omega) + (g_{1}^2) / (-\Delta - \omega)) a²
+\]
+

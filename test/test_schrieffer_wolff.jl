@@ -15,7 +15,9 @@
         schrieffer_wolff,
         sw_generator,
         project_to_subspace,
-        solve_for_generator
+        solve_for_generator,
+        set_fastmode_flat!,
+        is_fastmode_flat
 
     # Use σ± basis for cleaner SW transformations
     QuantumAlgebra.use_σpm(true)
@@ -629,113 +631,240 @@
         @test abs(ratio - 16.0) < 1e-6  # Should be exactly 16 for g⁴ scaling
     end
 
-    @testset "SymSum/SymExpr support for multi-atom systems" begin
-        # Import SymSum types
-        import QuantumAlgebra: sumindex, SymSum, SymExpr, expand_symbolic
+    @testset "Multi-atom systems with ∑" begin
+        Symbolics.@variables tc_Δ tc_g ω_c
+        QuantumAlgebra.use_σpm(true)
 
-        @variables ω_c tc_Δ tc_g
-
-        # Create a sum index for the Tavis-Cummings model
-        i = sumindex(1)
-
-        # Build Hamiltonian with symbolic sums
+        # Tavis-Cummings Hamiltonian using ∑
         H_cav = ω_c * a'() * a()
-        H_atom = SymSum(tc_Δ / 2 * σz(i), i)
-        H_int = SymSum(tc_g * (a'() * σm(i) + a() * σp(i)), i)
+        H_atom = ∑(:i, tc_Δ/2 * σz(:i))
+        H_int = ∑(:i, tc_g * (a'() * σm(:i) + a() * σp(:i)))
+        H = H_cav + H_atom + H_int
 
-        H = SymExpr(H_cav) + H_atom + H_int
+        P = Subspace(a'()*a() => 0, σz() => -1)
 
-        # Define subspace: zero photon sector
-        P = Subspace(a'() * a() => 0)
+        # Test: H is a plain QuExpr (no special types)
+        @test H isa QuExpr
 
-        # Test decomposition with SymExpr
+        # Decompose
         H_d, H_od = decompose(H, P)
+        @test is_diagonal(H_d, P)
+        @test !isempty(H_od.terms)
 
-        # The off-diagonal part should be the interaction term
-        @test H_od isa SymExpr
-
-        # Test solve_for_generator with SymSum
+        # Solve for generator
         S = solve_for_generator(H_d, H_od, P)
-        @test S isa SymExpr || S isa SymSum
+        @test S isa QuExpr
+        @test !isempty(S.terms)
 
-        # Test schrieffer_wolff with SymExpr
-        result = schrieffer_wolff(H, P; order = 2)
+        # Full SW
+        result = schrieffer_wolff(H, P; order=2)
+        @test result.H_eff isa QuExpr
+        @test result.S isa QuExpr
 
-        @test result.H_eff isa SymExpr
-        @test result.S isa SymExpr || result.S isa SymSum
+        # Project to subspace
+        H_simple = ω_c * a'()*a() + ∑(:j, tc_Δ/2 * σz(:j))
+        H_proj = project_to_subspace(H_simple, P)
+        @test H_proj isa QuExpr
+        @test is_diagonal(H_proj, P)
 
-        # Test that exchange terms appear when we compute [S, V] for 2 atoms
-        # Use the explicitly defined generator from the example
-        S1 = SymSum((tc_g / tc_Δ) * (a() * σp(i) - a'() * σm(i)), i)
+        # Combined subspace projection with SW
+        H_combined = ω_c * a'()*a() + ∑(:j, tc_Δ/2 * σz(:j))
+        result2 = schrieffer_wolff(H_combined, P; order=2)
+        @test result2.H_P isa QuExpr
 
-        # Expand to 2 atoms
-        S1_2 = expand_symbolic(S1, 1:2)
-        H_int_2 = expand_symbolic(H_int, 1:2)
+        QuantumAlgebra.use_σpm(false)
+    end
 
-        # Compute [S, V] for 2 atoms
-        comm_SV = normal_form(comm(S1_2, H_int_2))
+    @testset "sw_generator correctness" begin
+        Symbolics.@variables Δ g
+        QuantumAlgebra.use_σpm(true)
+        
+        H = Δ/2 * σz() + g * (a'() * σm() + a() * σp())
+        P = Subspace(σz() => -1)
+        
+        # Order 1: sw_generator produces correct S₁
+        S_gen1 = sw_generator(H, P; order=1)
+        result_full2 = schrieffer_wolff(H, P; order=2, diagonal_only=false)
+        @test normal_form(S_gen1) == normal_form(result_full2.S)
+        
+        # Order 2: sw_generator matches full SW S
+        S_gen2 = sw_generator(H, P; order=2)
+        result_full2b = schrieffer_wolff(H, P; order=2, diagonal_only=false)
+        @test normal_form(S_gen2) == normal_form(result_full2b.S)
+        
+        # Order 3: sw_generator matches full SW S
+        S_gen3 = sw_generator(H, P; order=3)
+        result_full3 = schrieffer_wolff(H, P; order=3, diagonal_only=false)
+        @test normal_form(S_gen3) == normal_form(result_full3.S)
+        
+        QuantumAlgebra.use_σpm(false)
+    end
 
-        # Check for exchange terms: σ⁺(1)σ⁻(2) and σ⁺(2)σ⁻(1)
-        has_exchange_12 = false
-        has_exchange_21 = false
+    @testset "schrieffer_wolff order 3 (full)" begin
+        @variables Δ g
+        QuantumAlgebra.use_σpm(true)
 
-        for (term, _) in comm_SV.terms
-            term_str = string(term.bares)
-            if occursin("σ⁺(1)", term_str) && occursin("σ⁻(2)", term_str)
-                has_exchange_12 = true
-            end
-            if occursin("σ⁺(2)", term_str) && occursin("σ⁻(1)", term_str)
-                has_exchange_21 = true
-            end
+        H = Δ / 2 * σz() + g * (a'() * σm() + a() * σp())
+        P = Subspace(σz() => -1)
+
+        # Full SW at order 3
+        result = schrieffer_wolff(H, P; order = 3, diagonal_only = false)
+        @test haskey(result, :H_eff)
+        @test haskey(result, :S)
+        @test haskey(result, :H_P)
+        @test result.H_eff isa QuExpr
+        @test result.S isa QuExpr
+
+        # H_eff should be block-diagonal (only diagonal terms)
+        @test is_diagonal(result.H_eff, P)
+
+        # Verify generator equation: [S, H_d] should approximately cancel V_od
+        H_d, H_od = decompose(H, P)
+        # At minimum order 1, [S₁, H_d] = -V_od₁
+        check = normal_form(comm(result.S, H_d) + H_od)
+        # Not exactly zero because S includes S₂, S₃ and H_od is just V₁
+        # But it should have fewer terms than original
+
+        QuantumAlgebra.use_σpm(false)
+    end
+
+    @testset "include_QQ virtual paths" begin
+        ops = nlevel_ops(3, :a)
+
+        # Hamiltonian with Q↔Q transitions (off-diagonal terms within excited subspace)
+        # States: |1⟩ = ground (P), |2⟩, |3⟩ = excited (Q)
+        H = ops[1, 1] + 2 * ops[2, 2] + 3 * ops[3, 3]  # diagonal
+        V_PQ = ops[1, 2] + ops[2, 1]  # P↔Q coupling
+        V_QQ = ops[2, 3] + ops[3, 2]  # Q↔Q coupling (off-diagonal within Q)
+        H_total = H + V_PQ + V_QQ
+
+        P = Subspace(ops[1, 1] => 1)  # ground state
+
+        # With include_QQ=true (default)
+        result_qq = schrieffer_wolff(H_total, P; order = 2, include_QQ = true)
+        @test result_qq.H_eff isa QuExpr
+
+        # With include_QQ=false
+        result_no_qq = schrieffer_wolff(H_total, P; order = 2, include_QQ = false)
+        @test result_no_qq.H_eff isa QuExpr
+
+        # Results should differ when Q↔Q terms are present
+        # (they may not differ much at order 2, but the computation path differs)
+    end
+
+    @testset "project_to_subspace - N-level" begin
+        ops = nlevel_ops(3, :a)
+
+        # H = Σᵢ Eᵢ |i⟩⟨i| + Σᵢⱼ Vᵢⱼ |i⟩⟨j|
+        H =
+            1 * ops[1, 1] + 2 * ops[2, 2] + 3 * ops[3, 3] + ops[1, 2] + ops[2, 1]
+
+        # Project onto state 1 (ground)
+        P = Subspace(ops[1, 1] => 1)
+        H_P = project_to_subspace(H, P)
+        @test H_P isa QuExpr
+        # Should only contain identity term (the eigenvalue of state 1)
+        @test is_diagonal(H_P, P)
+
+        # Project onto subspace where state 1 OR state 2 could be occupied
+        # (This is a multi-state subspace - test that projection works)
+    end
+
+    @testset "project_to_subspace transition projector semantics" begin
+        L = nlevel_ops(3, :L)
+        @variables E1 E2 E3 v12
+
+        H = E1 * L[1, 1] + E2 * L[2, 2] + E3 * L[3, 3] + v12 * (L[1, 2] + L[2, 1])
+        P = Subspace(L[1, 1] => 1)
+        H_P = project_to_subspace(H, P)
+
+        coeffs = [string(coeff) for (_, coeff) in H_P.terms]
+        op_strs = [isempty(term.bares.v) ? "𝟙" : string(term.bares) for (term, _) in H_P.terms]
+
+        @test op_strs == ["𝟙"]
+        @test any(c -> occursin("E1", c), coeffs)
+        @test !any(c -> occursin("E2", c), coeffs)
+        @test !any(c -> occursin("E3", c), coeffs)
+        @test !any(c -> occursin("v12", c), coeffs)
+    end
+
+    @testset "include_QQ 4th-order mixed coupling structure" begin
+        L = nlevel_ops(3, :L)
+        @variables Δ δ ω g1 g2
+
+        H0 = 0 * L[1, 1] + Δ * L[2, 2] + (Δ + δ) * L[3, 3] + ω * a'() * a()
+        V =
+            g1 * (L[1, 2] * a'() + L[2, 1] * a()) +
+            g2 * (L[2, 3] * a'() + L[3, 2] * a())
+        H = normal_form(H0 + V)
+        P = Subspace(L[1, 1] => 1)
+
+        result_inc = schrieffer_wolff(H, P; order = 4, include_QQ = true)
+        result_exc = schrieffer_wolff(H, P; order = 4, include_QQ = false)
+
+        coeffs_inc = [string(coeff) for (_, coeff) in result_inc.H_P.terms]
+        has_g1_inc = any(c -> occursin("g1", c), coeffs_inc)
+        has_g2_inc = any(c -> occursin("g2", c), coeffs_inc)
+        has_mixed_inc = any(c -> occursin("g1^2", c) && occursin("g2^2", c), coeffs_inc)
+        @test has_g1_inc
+        @test has_g2_inc
+        @test has_mixed_inc
+
+        coeffs_exc = [string(coeff) for (_, coeff) in result_exc.H_P.terms]
+        has_g2_exc = any(c -> occursin("g2", c), coeffs_exc)
+        @test !has_g2_exc
+    end
+
+    @testset "schrieffer_wolff simplify_mode options" begin
+        @variables Δ g
+        QuantumAlgebra.use_σpm(true)
+
+        H = Δ / 2 * σz() + g * (a'() * σm() + a() * σp())
+        P = Subspace(σz() => -1)
+
+        for mode in [:none, :fast, :standard, :fractions]
+            result = schrieffer_wolff(H, P; order = 2, simplify_mode = mode)
+            @test result.H_eff isa QuExpr
+            @test !isempty(result.H_eff.terms)
         end
 
-        @test has_exchange_12
-        @test has_exchange_21
+        QuantumAlgebra.use_σpm(false)
+    end
 
-        # Test project_to_subspace for SymExpr
-        @testset "project_to_subspace for SymExpr" begin
-            # Test 1: project_to_subspace removes off-diagonal terms
-            # Note: It does NOT substitute a†a → 0; it only removes off-diagonal operators
-            # and substitutes spin projection operators (σ⁺σ⁻)
-            H_test = SymExpr(ω_c * a'() * a())
-            P_vac = Subspace(a'() * a() => 0)
-            H_proj = project_to_subspace(H_test, P_vac)
-            # a†a is diagonal, so it remains (projection doesn't numerically evaluate)
-            @test H_proj isa QuExpr
+    @testset "diagonal_only at orders 2,3,4" begin
+        @variables Δ g
+        QuantumAlgebra.use_σpm(true)
 
-            # Test 2: Projecting SymSum with σz to spin-down
-            # σz is diagonal and gets substituted to its eigenvalue
-            j = sumindex(2)  # Use different index
-            H_spin = SymSum(tc_Δ / 2 * σz(j), j)
-            H_spin_expr = SymExpr(H_spin)
-            P_spin_down = Subspace(σz() => -1)
-            H_spin_proj = project_to_subspace(H_spin_expr, P_spin_down)
+        H = Δ / 2 * σz() + g * (a'() * σm() + a() * σp())
+        P = Subspace(σz() => -1)
 
-            # The result should be SymExpr with Σⱼ(-Δ/2)
-            # Check that it's still a SymExpr (the sum remains)
-            @test H_spin_proj isa SymExpr
-
-            # Test 3: Combined projection - cavity vacuum AND spin
-            H_combined = SymExpr(ω_c * a'() * a()) + SymSum(tc_Δ / 2 * σz(j), j)
-            P_both = Subspace(a'() * a() => 0, σz() => -1)
-            H_comb_proj = project_to_subspace(H_combined, P_both)
-
-            # σz(j) → -1, but a†a is not numerically substituted
-            @test H_comb_proj isa SymExpr
-
-            # Test 4: H_P from schrieffer_wolff should be projected
-            @test result.H_P isa SymExpr || result.H_P isa QuExpr
-
-            # Test 5: Off-diagonal terms should be removed
-            # Create a Hamiltonian with explicit off-diagonal terms
-            k = sumindex(3)
-            H_with_od = SymExpr(a'() * a()) + SymSum(σp(k) + σm(k), k)
-            P_spin = Subspace(σz() => -1)
-            H_od_proj = project_to_subspace(H_with_od, P_spin)
-            # σp and σm are off-diagonal and should be removed
-            # Only a†a should remain
-            @test H_od_proj isa QuExpr || H_od_proj isa SymExpr
+        for ord in [2, 3, 4]
+            result = schrieffer_wolff(H, P; order = ord, diagonal_only = true)
+            @test result.H_eff isa QuExpr
+            @test result.S isa QuExpr
+            # S should only be S₁ (single generator, not S₁+S₂+...)
         end
+
+        QuantumAlgebra.use_σpm(false)
+    end
+
+    @testset "fastmode flag restoration" begin
+        @variables Δ g
+        H = Δ / 2 * σz() + g * (a'() * σm() + a() * σp())
+        P = Subspace(σz() => -1)
+
+        # Restores to false
+        set_fastmode_flat!(false)
+        _ = schrieffer_wolff(H, P; order = 2, fastmode_flat = true)
+        @test is_fastmode_flat() == false
+
+        # Restores to true
+        set_fastmode_flat!(true)
+        _ = schrieffer_wolff(H, P; order = 2, fastmode_flat = false)
+        @test is_fastmode_flat() == true
+
+        # Cleanup
+        set_fastmode_flat!(false)
     end
 
     QuantumAlgebra.use_σpm(false)

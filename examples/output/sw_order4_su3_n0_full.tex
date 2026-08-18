@@ -1,0 +1,37 @@
+% 3-level ladder + cavity SW to 4th order (include_QQ=true)
+% SW order = 2
+% Regime: omega >> atomic scales, projection n=0
+% Variables: \Delta, \delta, \omega, g_1, g_2
+% Detunings: d_1 = \Delta - \omega, d_3 = \Delta + \delta - 2\omega
+% Substitution: \Delta => d_1 + \omega, \delta => d_3 - d_1 + \omega
+
+\section*{Input Hamiltonian}
+\[
+H = \Delta L_{22} + (\Delta + \delta) L_{33} + \omega a^{\dagger} a + g_{1} a^{\dagger} L_{12} + g_{2} a^{\dagger} L_{23} + g_{1} a L_{21} + g_{2} a L_{32}
+\]
+
+\section*{Generator}
+\[
+S = g_{1} / (-\Delta + \omega) a^{\dagger} L_{12} + g_{2} / (-\delta + \omega) a^{\dagger} L_{23} + g_{1} / (\Delta - \omega) a L_{21} + g_{2} / (\delta - \omega) a L_{32} + ((g_{1}*g_{2}) / (-\Delta + \omega) + (-g_{1}*g_{2}) / (-\delta + \omega) + (\frac{1}{2})*((g_{1}*g_{2}) / (-\delta + \omega) + (-g_{1}*g_{2}) / (-\Delta + \omega))) / (-\Delta - \delta + 2\omega) a^{\dagger}² L_{13} + ((\frac{1}{2})*((-g_{1}*g_{2}) / (\delta - \omega) + (g_{1}*g_{2}) / (\Delta - \omega)) + (g_{1}*g_{2}) / (\delta - \omega) + (-g_{1}*g_{2}) / (\Delta - \omega)) / (\Delta + \delta - 2\omega) a² L_{31}
+\]
+
+\section*{Effective Hamiltonian (raw)}
+\[
+H_{\mathrm{eff}} = ((g_{1}^2) / (\Delta - \omega) + (\frac{1}{2})*((-(g_{1}^2)) / (\Delta - \omega) + (g_{1}^2) / (-\Delta + \omega)) + (-(g_{1}^2)) / (-\Delta + \omega) + \Delta) L_{22} + ((\frac{1}{2})*((-(g_{2}^2)) / (\delta - \omega) + (g_{2}^2) / (-\delta + \omega)) + (g_{2}^2) / (\delta - \omega) + (-(g_{2}^2)) / (-\delta + \omega) + \Delta + \delta) L_{33} + \omega a^{\dagger} a + ((\frac{1}{2})*((g_{1}^2) / (\Delta - \omega) + (-(g_{1}^2)) / (-\Delta + \omega)) + (-(g_{1}^2)) / (\Delta - \omega) + (g_{1}^2) / (-\Delta + \omega)) a^{\dagger} a L_{11} + ((-(g_{2}^2)) / (\delta - \omega) + (\frac{1}{2})*((g_{2}^2) / (\delta - \omega) + (-(g_{1}^2)) / (\Delta - \omega) + (-(g_{2}^2)) / (-\delta + \omega) + (g_{1}^2) / (-\Delta + \omega)) + (g_{1}^2) / (\Delta - \omega) + (g_{2}^2) / (-\delta + \omega) + (-(g_{1}^2)) / (-\Delta + \omega)) a^{\dagger} a L_{22} + ((\frac{1}{2})*((-(g_{2}^2)) / (\delta - \omega) + (g_{2}^2) / (-\delta + \omega)) + (g_{2}^2) / (\delta - \omega) + (-(g_{2}^2)) / (-\delta + \omega)) a^{\dagger} a L_{33}
+\]
+
+\section*{Effective Hamiltonian (detuning vars)}
+\[
+H_{\mathrm{eff}} = (d1^2 + d1*\omega + g_{1}^2) / d1 L_{22} + (-d1*d3 - (\frac{2}{1})*d1*\omega + d3^2 + (\frac{2}{1})*d3*\omega + g_{2}^2) / (-d1 + d3) L_{33} + \omega a^{\dagger} a + (-(g_{1}^2)) / d1 a^{\dagger} a L_{11} + (-d1*(g_{1}^2) - d1*(g_{2}^2) + d3*(g_{1}^2)) / (d1*(-d1 + d3)) a^{\dagger} a L_{22} + (g_{2}^2) / (-d1 + d3) a^{\dagger} a L_{33}
+\]
+
+\section*{Projected n=0 SU(3) Hamiltonian (raw)}
+\[
+H_{P,n=0} = ((g_{1}^2) / (\Delta - \omega) + (\frac{1}{2})*((-(g_{1}^2)) / (\Delta - \omega) + (g_{1}^2) / (-\Delta + \omega)) + (-(g_{1}^2)) / (-\Delta + \omega) + \Delta) L_{22} + ((\frac{1}{2})*((-(g_{2}^2)) / (\delta - \omega) + (g_{2}^2) / (-\delta + \omega)) + (g_{2}^2) / (\delta - \omega) + (-(g_{2}^2)) / (-\delta + \omega) + \Delta + \delta) L_{33}
+\]
+
+\section*{Projected n=0 SU(3) Hamiltonian (detuning vars)}
+\[
+H_{P,n=0} = (d1^2 + d1*\omega + g_{1}^2) / d1 L_{22} + (-d1*d3 - (\frac{2}{1})*d1*\omega + d3^2 + (\frac{2}{1})*d3*\omega + g_{2}^2) / (-d1 + d3) L_{33}
+\]
+

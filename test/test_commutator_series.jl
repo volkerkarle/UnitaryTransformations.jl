@@ -287,4 +287,115 @@
 
         QuantumAlgebra.use_σpm(false)
     end
+
+    @testset "multi_nested_commutator with many generators" begin
+        # Test with 4 generators
+        gens4 = [a(), a'(), a(), a'()]
+        result = multi_nested_commutator(gens4, a'()*a())
+        @test result isa QuExpr
+
+        # Test with 5 generators (should still work)
+        gens5 = [a(), a(), a(), a(), a()]
+        result2 = multi_nested_commutator(gens5, a'())
+        @test result2 isa QuExpr
+    end
+
+    @testset "bch_combine order 5 - Pauli algebra verification" begin
+        # Use commuting case to verify order-5 correctness
+        @variables α β
+
+        # Two commuting operators should give A + B at any order
+        A = α * a'() * a()
+        B = β * a'() * a()
+        Z = bch_combine(A, B; order=5)
+        @test normal_form(Z) == normal_form(α * a'()*a() + β * a'()*a())
+
+        # Test with non-commuting case: A = α a, B = β a†
+        # [A,B] = αβ, [[A,B],A] = 0, etc.
+        A2 = α * a()
+        B2 = β * a'()
+        Z2 = bch_combine(A2, B2; order=5)
+        # Known result: e^{α a} e^{β a†} = e^{α a + β a† + αβ/2} (exact!)
+        expected = normal_form(α * a() + β * a'() + (α*β/2))
+        @test normal_form(Z2) == expected
+    end
+
+    @testset "nested_commutator high depth" begin
+        # Test depth 5
+        S = a()
+        H_val = a'() * a()
+        result = nested_commutator(S, H_val, 5)
+        # [a, [a, [a, [a, [a, a†a]]]]] = 0 (since 2 nested comms already give 0)
+        @test result == zero(QuExpr)
+
+        # Test with non-vanishing nested commutators (bosonic, depth 2)
+        # [a†, [a, a†a]] = [a†, a] = -1 (non-zero scalar)
+        S3 = a'()
+        H3 = a'() * a()
+        r3 = nested_commutator(S3, H3, 2)
+        @test r3 isa QuExpr
+    end
+
+    @testset "compositions edge cases" begin
+        # Test with larger n,k values
+        result = compositions(6, 3)
+        # There should be C(5,2) = 10 compositions of 6 into 3 positive parts
+        @test length(result) == 10
+
+        # n=0, k=0 case (valid)
+        result2 = compositions(0, 0)
+        @test length(result2) == 1
+        @test isempty(result2[1])
+
+        # n>0, k=0 case (no solutions)
+        result3 = compositions(5, 0)
+        @test isempty(result3)
+
+        # max_val edge case
+        result4 = compositions(4, 2; max_val=2)
+        @test length(result4) == 1  # only (2,2)
+        @test result4[1] == [2, 2]
+    end
+
+    @testset "bch_transform - known result" begin
+        # Test: e^{θ a} a†a e^{-θ a} = a†a + θ a
+        @variables θ
+        S = θ * a()
+        A = a'() * a()
+        result = bch_transform(S, A; order=2)
+        expected = normal_form(A + θ * a())
+        @test normal_form(result) == expected
+    end
+
+    @testset "bch_combine order 5 - SU(2) quantitative" begin
+        Symbolics.@variables α β
+        
+        # SU(2) generators provide non-terminating commutators
+        λ = su_generators(2, :λ)
+        A = α * λ[1]  # λ₁ = σ₁/2
+        B = β * λ[2]  # λ₂ = σ₂/2
+        
+        Z5 = bch_combine(A, B; order=5)
+        Z4 = bch_combine(A, B; order=4)
+        Z3 = bch_combine(A, B; order=3)
+        Z2 = bch_combine(A, B; order=2)
+        
+        # Order 5 must differ from order 2 (non-terminating series)
+        @test normal_form(Z5) != normal_form(Z2)
+        
+        # Order 3 and 4 may or may not differ in SU(2); order 4 often adds nothing.
+        # Order 5 must add new terms
+        @test normal_form(Z5) != normal_form(Z2)
+        
+        # All must be non-empty
+        @test !isempty(Z5.terms)
+        
+        # Identity: bch_combine(A, 0) = A
+        Z_zero = bch_combine(A, zero(QuExpr); order=5)
+        @test normal_form(Z_zero) == normal_form(A)
+        
+        # Commuting case: [B, B] = 0 so bch_combine(B, B) = 2B
+        Z_comm = bch_combine(B, B; order=5)
+        @test normal_form(Z_comm) == normal_form(2 * B)
+    end
 end

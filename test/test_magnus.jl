@@ -248,4 +248,99 @@
 
         QuantumAlgebra.use_σpm(false)
     end
+
+    @testset "FourierHamiltonian edge cases" begin
+        Symbolics.@variables ω
+
+        # Single mode (H₀ only, no AC components)
+        H_dc = FourierHamiltonian(Dict(0 => σz()), ω)
+        @test H_dc[0] isa QuExpr
+        @test H_dc[1] == zero(QuExpr)  # Unspecified modes should be zero
+        @test !haskey(H_dc, 5)
+
+        # Keys should include 0
+        @test 0 in keys(H_dc)
+    end
+
+    @testset "check_hermiticity - FourierHamiltonian" begin
+        Symbolics.@variables ω
+
+        QuantumAlgebra.use_σpm(true)
+
+        # Hermitian case: H₁ = σ⁺, H₋₁ = σ⁻
+        H_herm = FourierHamiltonian(Dict(0 => σz(), 1 => σp(), -1 => σm()), ω)
+        @test check_hermiticity(H_herm)
+
+        # Non-Hermitian case: H₁ = σ⁺, but no H₋₁
+        H_nonherm = FourierHamiltonian(Dict(0 => σz(), 1 => σp()), ω)
+        @test_throws ArgumentError check_hermiticity(H_nonherm)
+
+        # Warn-only mode
+        @test !check_hermiticity(H_nonherm; warn_only=true)
+
+        QuantumAlgebra.use_σpm(false)
+    end
+
+    @testset "MagnusResult iteration" begin
+        Symbolics.@variables Δ Ω ω
+        QuantumAlgebra.use_σpm(true)
+
+        modes = Dict(0 => Δ/2 * σz(), 1 => Ω/2 * σp(), -1 => Ω/2 * σm())
+        result = magnus_expansion(modes, ω; order=3)
+
+        # Access by index
+        @test result[1] isa QuExpr  # Ω₁ = H₀
+        @test result[2] isa QuExpr  # Ω₂
+        @test result[3] isa QuExpr  # Ω₃
+        @test result[10] == zero(QuExpr)  # Out of range (not computed)
+
+        # Access by property
+        @test result.Ω1 isa QuExpr
+        @test result.Ω2 isa QuExpr
+        @test result.Ω3 isa QuExpr
+        @test result.Ω10 == zero(QuExpr)  # Not computed
+
+        # Direct H_eff access
+        @test result.H_eff isa QuExpr
+
+        # Keys iterate over computed orders
+        @test 1 in keys(result)
+        @test 2 in keys(result)
+        @test 3 in keys(result)
+
+        QuantumAlgebra.use_σpm(false)
+    end
+
+    @testset "FourierHamiltonian construction" begin
+        Symbolics.@variables ω
+
+        # Dict with Int keys
+        modes = Dict{Int,QuExpr}(0 => σz())
+        H = FourierHamiltonian(modes, ω)
+        @test H isa FourierHamiltonian
+
+        # Constructor with integer key coercion from generic Dict
+        modes2 = Dict(0 => σz(), 1 => a'()*a())
+        H2 = FourierHamiltonian(modes2, ω)
+        @test H2 isa FourierHamiltonian
+        @test H2[0] isa QuExpr
+        @test H2[1] isa QuExpr
+    end
+
+    @testset "Magnus higher odd orders" begin
+        Symbolics.@variables Δ Ω ω
+        QuantumAlgebra.use_σpm(true)
+
+        modes = Dict(0 => Δ/2 * σz(), 1 => Ω/2 * σp(), -1 => Ω/2 * σm())
+
+        # Order 5 (odd — tests symmetric handling)
+        result5 = magnus_expansion(modes, ω; order=5)
+        @test result5.Ω5 isa QuExpr
+
+        # Order 7
+        result7 = magnus_expansion(modes, ω; order=7)
+        @test result7.Ω7 isa QuExpr
+
+        QuantumAlgebra.use_σpm(false)
+    end
 end

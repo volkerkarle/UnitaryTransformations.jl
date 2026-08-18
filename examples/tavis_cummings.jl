@@ -14,8 +14,8 @@ where:
 - Δ = ω_q - ω_c: detuning
 - i ∈ {1, 2, ..., N}: atom index
 
-This example uses the NEW SymSum type from QuantumAlgebra.jl which properly
-handles symbolic sums with correct commutator semantics:
+The ∑ function from QuantumAlgebra.jl properly handles symbolic sums with
+correct commutator semantics:
 - Same-site terms: Σᵢ [Aᵢ, Bᵢ]
 - Cross-site terms: Σᵢ Σⱼ≠ᵢ [Aᵢ, Bⱼ]
 
@@ -42,10 +42,6 @@ Reference:
 using QuantumAlgebra
 using Symbolics
 
-# The SymSum types are exported from QuantumAlgebra
-# Import additional utilities for this example
-import QuantumAlgebra: sumindex
-
 println("="^70)
 println("  Tavis-Cummings Model: N Atoms with Symbolic Sums")
 println("="^70)
@@ -56,26 +52,23 @@ QuantumAlgebra.use_σpm(true)
 # Define symbolic parameters
 @variables ω_c Δ g  # cavity freq, detuning (in rotating frame), coupling
 
-println("\n1. HAMILTONIAN CONSTRUCTION WITH SYMBOLIC SUMS")
+println("\n1. HAMILTONIAN CONSTRUCTION WITH ∑")
 println("-"^60)
-println("Using SymSum to represent Σᵢ with proper bound variable semantics")
+println("Using ∑(:i, ...) to represent Σᵢ with proper bound variable semantics")
 println()
 
-# Create a sum index
-i = sumindex(1)
-
-# Build the Tavis-Cummings Hamiltonian using SymSum
+# Build the Tavis-Cummings Hamiltonian using ∑
 # H_cav = ω_c a†a (no sum - single cavity mode)
 H_cav = ω_c * a'() * a()
 
 # H_atom = Σᵢ (Δ/2) σz(i)
-H_atom = SymSum(Δ / 2 * σz(i), i)
+H_atom = ∑(:i, Δ / 2 * σz(:i))
 
 # H_int = Σᵢ g(a†σ⁻(i) + aσ⁺(i))
-H_int = SymSum(g * (a'() * σm(i) + a() * σp(i)), i)
+H_int = ∑(:i, g * (a'() * σm(:i) + a() * σp(:i)))
 
-# Total Hamiltonian (SymExpr combining QuExpr and SymSum terms)
-H = SymExpr(H_cav) + H_atom + H_int
+# Total Hamiltonian (∑ returns plain QuExpr, so simple addition works)
+H = H_cav + H_atom + H_int
 
 println("Cavity term:      H_cav = ω_c a†a")
 println("Atom term:        H_atom = ", H_atom)
@@ -109,13 +102,13 @@ println("  V = ", V)
 # where we use [σz, σ±] = ±2σ± and [a†a, a] = -a, [a†a, a†] = a†
 
 # Construct the generator
-S1 = SymSum((g / Δ) * (a() * σp(i) - a'() * σm(i)), i)
+S1 = ∑(:i, (g / Δ) * (a() * σp(:i) - a'() * σm(:i)))
 
 println("\nFirst-order generator:")
 println("  S₁ = ", S1)
 
 # Verify: [S₁, H_d] should equal -V
-# This requires computing commutators with SymSum
+# This requires computing commutators with ∑-based expressions
 println("\nVerifying generator equation [S₁, H_d] = -V...")
 
 # Commutator with cavity part: [S₁, ω_c a†a]
@@ -147,8 +140,9 @@ println("  ", comm_S1_V)
 println("\n4. EXPANSION FOR N=2 ATOMS")
 println("-"^60)
 
-expanded_comm = expand_symbolic(comm_S1_V, 1:2)
-expanded_normal = normal_form(expanded_comm)
+# With ∑, normal_form handles the sum expansion automatically;
+# no separate expand_symbolic call is needed
+expanded_normal = normal_form(comm_S1_V)
 
 println("Expanding [S₁, V] for 2 atoms:")
 println("  ", expanded_normal)
@@ -188,7 +182,7 @@ The second-order effective Hamiltonian H_eff = H_d + (1/2)[S₁, V] contains:
 3. DISPERSIVE COUPLING
    The term χ·a†a·Jz couples the photon number to the total spin.
 
-4. EXCHANGE INTERACTION (NEW with SymSum!)
+4. EXCHANGE INTERACTION
    The cross-site terms give:
    
      H_exchange = χ Σᵢ≠ⱼ (σ⁺ᵢσ⁻ⱼ + σ⁺ⱼσ⁻ᵢ)
@@ -199,42 +193,17 @@ The second-order effective Hamiltonian H_eff = H_d + (1/2)[S₁, V] contains:
    - Foundation for cavity-mediated quantum gates
    - XY-type interaction: (σₓᵢσₓⱼ + σᵧᵢσᵧⱼ)/2
 
-The exchange interaction was MISSING in the old approach because
-sumindex(1) treated all sums as having the same index, giving only
-same-site contributions.
-
-With SymSum, we correctly get:
+With ∑, commutators correctly decompose into same-site and cross-site terms:
    [Σᵢ Aᵢ, Σⱼ Bⱼ] = Σᵢ[Aᵢ, Bᵢ] + Σᵢ Σⱼ≠ᵢ [Aᵢ, Bⱼ]
                      |_________|   |______________|
                       same-site     cross-site (exchange!)
 """)
 
 # =============================================================================
-# Section 6: Comparison - Old vs New
+# Section 6: Explicit Two-Atom Calculation
 # =============================================================================
 
-println("\n6. COMPARISON: OLD (sumindex) vs NEW (SymSum)")
-println("-"^60)
-
-println("OLD APPROACH (broken for multi-atom physics):")
-println("  i = sumindex(1)")
-println("  V = g * (a'()*σm(i) + a()*σp(i))  # Just uses #₁")
-println("  # Commutators treat all i's as the SAME site")
-println("  # → Missing exchange terms!")
-println()
-
-println("NEW APPROACH (correct physics):")
-println("  i = sumindex(1)")
-println("  V = SymSum(g * (a'()*σm(i) + a()*σp(i)), i)")
-println("  # SymSum tracks bound variable i")
-println("  # Commutators split into same-site + cross-site")
-println("  # → Exchange interaction emerges naturally!")
-
-# =============================================================================
-# Section 7: Explicit Two-Atom Calculation
-# =============================================================================
-
-println("\n7. EXPLICIT TWO-ATOM EFFECTIVE HAMILTONIAN")
+println("\n6. EXPLICIT TWO-ATOM EFFECTIVE HAMILTONIAN")
 println("-"^60)
 
 # Build explicit two-atom Hamiltonian
@@ -311,10 +280,10 @@ This interaction enables:
 """)
 
 # =============================================================================
-# Section 8: Symbolic N-Atom Result
+# Section 7: Symbolic N-Atom Result
 # =============================================================================
 
-println("\n8. SYMBOLIC N-ATOM RESULT")
+println("\n7. SYMBOLIC N-ATOM RESULT")
 println("-"^60)
 
 println("""
@@ -328,9 +297,9 @@ where:
   • ω̃_c = ω_c - Nχ/2 (collective Lamb shift)
   • ω̃_q = ω_q + χ (AC Stark shift)
 
-In SymSum notation, the exchange term is:
+In ∑ notation, the exchange term is:
 
-  H_exchange = χ · Σ#₁(Σ#₂≠#₁(σ⁺(#₁)σ⁻(#₂)))
+  H_exchange = χ · ∑(:i, ∑(:j, σ⁺(:i)σ⁻(:j)))   (with i ≠ j handled by commutation)
 
 This nested sum with the j≠i constraint correctly represents:
   Σᵢ Σⱼ≠ᵢ σ⁺ᵢσ⁻ⱼ = Σᵢ<ⱼ (σ⁺ᵢσ⁻ⱼ + σ⁺ⱼσ⁻ᵢ)

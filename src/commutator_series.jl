@@ -8,10 +8,26 @@ Provides several BCH-related functions:
 """
 
 export commutator_series,
-    nested_commutator, multi_nested_commutator, compositions, bch_transform, bch_combine
+    nested_commutator,
+    multi_nested_commutator,
+    compositions,
+    bch_transform,
+    bch_combine,
+    set_fastmode_flat!,
+    is_fastmode_flat
 
 using QuantumAlgebra
 using QuantumAlgebra: QuExpr, normal_form, comm
+
+const _FASTMODE_FLAT = Ref(false)
+
+"""Enable/disable fast flat commutator mode (skips per-step normal_form)."""
+function set_fastmode_flat!(flag::Bool)
+    _FASTMODE_FLAT[] = flag
+    return _FASTMODE_FLAT[]
+end
+
+is_fastmode_flat() = _FASTMODE_FLAT[]
 
 """
     nested_commutator(S::QuExpr, H::QuExpr, n::Int)
@@ -28,9 +44,13 @@ function nested_commutator(S::QuExpr, H::QuExpr, n::Int)
     n >= 0 || throw(ArgumentError("n must be non-negative, got $n"))
 
     result = H
+    use_flat = _FASTMODE_FLAT[] && n >= 3
     for _ = 1:n
-        result = comm(S, result)
-        result = normal_form(result)
+        if use_flat
+            result = comm(S, result)
+        else
+            result = normal_form(comm(S, result))
+        end
     end
     return result
 end
@@ -56,9 +76,14 @@ function multi_nested_commutator(generators::Vector{QuExpr}, X::QuExpr)
     isempty(generators) && return X
 
     result = X
+    use_flat = _FASTMODE_FLAT[] && length(generators) >= 3
     # Apply from right to left: for [S₁, [S₂, X]], we first compute [S₂, X], then [S₁, ...]
     for g in reverse(generators)
-        result = normal_form(comm(g, result))
+        if use_flat
+            result = comm(g, result)
+        else
+            result = normal_form(comm(g, result))
+        end
     end
     return result
 end
@@ -293,14 +318,23 @@ function bch_combine(A::QuExpr, B::QuExpr; order::Int = 4)
 
         Z = normal_form(Z - (C_A_A_A_AB + C_B_B_B_AB) * (1 // 720))
 
-        # Additional order 5 cross terms
-        C_A_B_B_AB = normal_form(comm(A, C_B_B_AB))
+        # Order 5 cross terms with standard BCH coefficients
+        # [B,[A,[A,[A,B]]]] + (1/360)
         C_B_A_A_AB = normal_form(comm(B, C_A_A_AB))
-        Z = normal_form(Z + (C_A_B_B_AB + C_B_A_A_AB) * (1 // 360))
+        # [A,[B,[B,[A,B]]]] + (1/360)
+        C_A_B_B_AB = normal_form(comm(A, C_B_B_AB))
+        # [A,[B,[A,[A,B]]]] - (1/120)
+        C_A_B_A_AB_val = normal_form(comm(A, C_B_A_AB))
+        C_A_B_B = normal_form(comm(A, C_B_AB))
+        # [B,[A,[B,[A,B]]]] - (1/120)
+        C_B_A_B_AB = normal_form(comm(B, C_A_B_B))
 
-        C_A_B_A_AB = normal_form(comm(A, C_B_A_AB))
-        C_B_A_B_AB = normal_form(comm(B, normal_form(comm(A, C_B_AB))))
-        Z = normal_form(Z + (C_A_B_A_AB + C_B_A_B_AB) * (1 // 120))
+        Z = normal_form(Z +
+            C_B_A_A_AB * (1 // 360) +
+            C_A_B_B_AB * (1 // 360) -
+            C_A_B_A_AB_val * (1 // 120) -
+            C_B_A_B_AB * (1 // 120)
+        )
     end
 
     if order >= 6

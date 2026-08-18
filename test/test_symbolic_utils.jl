@@ -115,9 +115,14 @@
     end
 
     @testset "format_expression" begin
-        s_unicode = format_expression("Δ + ω + a†() a()"; mode = :unicode)
+        s_unicode = format_expression("Δ + ω + a†() a() + g1*d1 + d1^2 + 1//2"; mode = :unicode)
         @test occursin("Δ", s_unicode)
-        @test occursin("a'()", s_unicode)
+        @test occursin("a'", s_unicode)
+        @test occursin("g₁", s_unicode)
+        @test occursin("d₁", s_unicode)
+        @test occursin("d₁²", s_unicode)
+        @test !occursin("//", s_unicode)
+        @test !occursin("*", s_unicode)
 
         s_latex = format_expression("Δ + ω + a†() a() + 1//2"; mode = :latex)
         @test occursin("\\Delta", s_latex)
@@ -148,7 +153,7 @@
             write_expression_dump(path_txt, sections; mode = :unicode, tex = false)
             txt_data = read(path_txt, String)
             @test occursin("[Input]", txt_data)
-            @test occursin("a'()", txt_data)
+            @test occursin("a'", txt_data)
 
             @test_throws ArgumentError write_expression_dump(
                 path_txt,

@@ -48,6 +48,7 @@ using LinearAlgebra
 
 # Cache for parameter -> Symbolics variable mapping
 const _param_cache = Dict{String,Num}()
+const _param_cache_lock = ReentrantLock()
 
 """
     detect_lie_algebra_system(V_od::QuExpr)
@@ -97,12 +98,14 @@ Caches variables to ensure the same param always maps to the same variable.
 """
 function param_to_symbolic(p::Param)
     name_str = string(p.name)
-    if haskey(_param_cache, name_str)
-        return _param_cache[name_str]
-    else
-        var = Symbolics.variable(Symbol(name_str))
-        _param_cache[name_str] = var
-        return var
+    lock(_param_cache_lock) do
+        if haskey(_param_cache, name_str)
+            return _param_cache[name_str]
+        else
+            var = Symbolics.variable(Symbol(name_str))
+            _param_cache[name_str] = var
+            return var
+        end
     end
 end
 
@@ -462,6 +465,7 @@ function cartan_weyl_to_gellmann(
         # Get the Gell-Mann generator indices
         real_gen, imag_gen = transition_to_gen[pair]
 
+        # Convention used here (matching this package's generator normalization):
         # |i⟩⟨j| = λ_real + i λ_imag  (for i < j)
         # |j⟩⟨i| = λ_real - i λ_imag
         #
@@ -558,105 +562,3 @@ function solve_for_generator_lie(
     return normal_form(S)
 end
 
-# =============================================================================
-# SymSum/SymExpr Extensions for Multi-Atom/Multi-Site Systems
-# =============================================================================
-
-import ..UnitaryTransformations: SymSum, SymProd, SymExpr, AbstractSymbolicAggregate
-
-"""
-    solve_for_generator(H_d::QuExpr, V_od::SymSum, P::Subspace)
-
-Solve [S, H_d] = -V_od for the generator S when V_od is a symbolic sum.
-
-For a symbolic sum Σᵢ V(i), the generator is also a symbolic sum Σᵢ S(i)
-where each S(i) is computed using the eigenoperator method.
-
-# Key insight
-For operators with sum indices, [H_d, Σᵢ O(i)] = Σᵢ [H_d, O(i)] since H_d
-typically doesn't depend on the sum index. The generator is then:
-    S = Σᵢ V(i)/ε(i)
-where ε(i) is the energy denominator for each term.
-"""
-function solve_for_generator(H_d::QuExpr, V_od::SymSum, P::Subspace)
-    # Solve for the generator of the inner expression
-    # This gives S such that [S_inner, H_d] = -V_inner
-    inner_S = solve_for_generator(H_d, V_od.expr, P)
-
-    # Wrap in the same sum structure
-    return SymSum(inner_S, V_od.index, V_od.excluded)
-end
-
-"""
-    solve_for_generator(H_d::QuExpr, V_od::SymExpr, P::Subspace)
-
-Solve [S, H_d] = -V_od for the generator S when V_od is a symbolic expression.
-
-For a symbolic expression with multiple terms, solve for each term separately
-and combine the results.
-"""
-function solve_for_generator(H_d::QuExpr, V_od::SymExpr, P::Subspace)
-    # Solve for the scalar part (regular QuExpr)
-    scalar_S = QuExpr()
-    if !iszero(V_od.scalar)
-        scalar_S = solve_for_generator(H_d, V_od.scalar, P)
-    end
-
-    # Solve for each symbolic aggregate term
-    terms_S = Tuple{Number,AbstractSymbolicAggregate}[]
-
-    for (coeff, agg) in V_od.terms
-        agg_S = solve_for_generator(H_d, agg, P)
-        if agg_S isa AbstractSymbolicAggregate
-            push!(terms_S, (coeff, agg_S))
-        else
-            # If solving returned a QuExpr, add to scalar
-            scalar_S = normal_form(scalar_S + coeff * agg_S)
-        end
-    end
-
-    if isempty(terms_S)
-        return scalar_S
-    else
-        return SymExpr(terms_S, scalar_S)
-    end
-end
-
-"""
-    solve_for_generator(H_d::SymExpr, V_od::QuExpr, P::Subspace)
-
-Solve when H_d is a SymExpr and V_od is a regular QuExpr.
-Extract the scalar (QuExpr) part of H_d for the generator equation.
-"""
-function solve_for_generator(H_d::SymExpr, V_od::QuExpr, P::Subspace)
-    # The diagonal Hamiltonian's scalar part determines the energy denominators
-    # For now, we only support the case where H_d.scalar is the relevant part
-    if !isempty(H_d.terms)
-        @warn "SymExpr H_d with symbolic aggregate terms not fully supported. Using scalar part only."
-    end
-    return solve_for_generator(H_d.scalar, V_od, P)
-end
-
-"""
-    solve_for_generator(H_d::SymExpr, V_od::SymSum, P::Subspace)
-
-Solve when both H_d and V_od involve symbolic sums.
-"""
-function solve_for_generator(H_d::SymExpr, V_od::SymSum, P::Subspace)
-    if !isempty(H_d.terms)
-        @warn "SymExpr H_d with symbolic aggregate terms not fully supported. Using scalar part only."
-    end
-    return solve_for_generator(H_d.scalar, V_od, P)
-end
-
-"""
-    solve_for_generator(H_d::SymExpr, V_od::SymExpr, P::Subspace)
-
-Solve when both H_d and V_od are symbolic expressions.
-"""
-function solve_for_generator(H_d::SymExpr, V_od::SymExpr, P::Subspace)
-    if !isempty(H_d.terms)
-        @warn "SymExpr H_d with symbolic aggregate terms not fully supported. Using scalar part only."
-    end
-    return solve_for_generator(H_d.scalar, V_od, P)
-end

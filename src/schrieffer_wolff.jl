@@ -26,7 +26,8 @@ import ..UnitaryTransformations:
     is_number_constraint,
     simplify_coefficients,
     multi_nested_commutator,
-    compositions
+    compositions,
+    is_fastmode_flat
 
 using Symbolics: Num, expand
 
@@ -134,8 +135,8 @@ in perturbation theory.
   - `:aggressive` - Full simplification (slowest)
 - `diagonal_only`: If true, only compute H_eff (skip computing higher-order generators).
   This is much faster for high orders when you only need the effective Hamiltonian.
-  Note: This uses a simplified algorithm that only uses S₁; with `include_QQ=true`,
-  it will not include Q↔Q virtual paths.
+   Note: This uses a simplified algorithm that only uses S₁. The `include_QQ`
+   parameter is ignored when `diagonal_only=true`; Q↔Q virtual paths are not included.
 - `include_QQ`: If true (default), treat block-diagonal couplings within Q (e.g.,
   off-diagonal transition operators that do not involve the constrained state)
   as perturbations. This captures virtual paths like P→Q→Q→P at higher order.
@@ -188,95 +189,117 @@ function schrieffer_wolff(
     diagonal_only::Bool = false,
     include_QQ::Bool = true,
     parallel::Bool = false,
+    fastmode_flat::Bool = false,
 )
     order >= 2 || throw(ArgumentError("order must be at least 2, got $order"))
-
-    # Normalize the Hamiltonian first
-    H = normal_form(H)
-
-    # Decompose H = H_d (block-diagonal) + H_od (P↔Q couplings)
-    H_d, H_od = decompose(H, P)
-
-    # Use optimized diagonal-only algorithm if requested
-    if diagonal_only
-        return _schrieffer_wolff_diagonal_only(H, H_d, H_od, P, order, simplify_mode)
+    if fastmode_flat && parallel
+        @warn "fastmode_flat disables threaded BCH collection for Symbolics stability"
+        parallel = false
     end
 
-    # Optionally treat Q↔Q couplings as perturbations
-    H0 = H_d
-    V_total = H_od
-    if include_QQ
-        V_QQ = _extract_QQ_terms(H_d, P)
-        if !isempty(V_QQ.terms)
-            H0 = normal_form(H_d - V_QQ)
-            V_total = normal_form(H_od + V_QQ)
+    prev_fast = is_fastmode_flat()
+    set_fastmode_flat!(fastmode_flat)
+    try
+        # Normalize the Hamiltonian first
+        H = normal_form(H)
+
+        # Decompose H = H_d (block-diagonal) + H_od (P↔Q couplings)
+        H_d, H_od = decompose(H, P)
+
+        # Use optimized diagonal-only algorithm if requested
+        if diagonal_only
+            if include_QQ
+                @warn "diagonal_only=true ignores include_QQ; Q↔Q virtual paths are not included"
+            end
+            return _schrieffer_wolff_diagonal_only(H, H_d, H_od, P, order, simplify_mode)
         end
-    end
 
-    # Split perturbation into diagonal and off-diagonal parts
-    V_diag, V_od1 = decompose(V_total, P)
-
-    # Store generators at each order: S[n] = Sₙ (order gⁿ)
-    S = Vector{QuExpr}(undef, order)
-
-    # Store off-diagonal "potentials" that each Sₙ must cancel: Vₙ where [Sₙ, H₀] = -Vₙ
-    V_od = Vector{QuExpr}(undef, order)
-    V_od[1] = V_od1  # V₁ = off-diagonal part of perturbation
-
-    # Initialize effective Hamiltonian with diagonal part
-    H_eff = normal_form(H0 + V_diag)
-
-    # ========== Order 1: [S₁, H₀] = -V ==========
-    S[1] = solve_for_generator(H0, V_od1, P)
-
-    # ========== Order 2 and beyond ==========
-    for n = 2:order
-        # Collect all contributions at order n from the BCH expansion
-        # H_eff = H + [S,H] + (1/2)[S,[S,H]] + (1/6)[S,[S,[S,H]]] + ...
-        # with S = S₁ + S₂ + ... + Sₙ₋₁ (Sₙ not yet determined)
-
-        order_n_terms =
-            _collect_bch_terms_at_order(S, V_od, n, H0, V_total, P; parallel = parallel)
-        # Simplify incrementally to prevent expression explosion
-        # Use expand-only simplification which is fast but effective
-        order_n_terms = _simplify_expand_only(order_n_terms)
-
-        # Decompose into diagonal (→ H_eff) and off-diagonal (→ determines Sₙ)
-        order_n_diag, order_n_od = decompose(order_n_terms, P)
-
-        # Add diagonal contribution to H_eff
-        H_eff = normal_form(H_eff + order_n_diag)
-
-        # The off-diagonal part must be cancelled by [Sₙ, H₀]
-        V_od[n] = order_n_od
-
-        # Solve for Sₙ: [Sₙ, H₀] = -Vₙ
-        if !isempty(order_n_od.terms)
-            S[n] = solve_for_generator(H0, order_n_od, P)
-        else
-            S[n] = QuExpr()
+        # Optionally treat Q↔Q couplings as perturbations
+        H0 = H_d
+        V_total = H_od
+        if include_QQ
+            V_QQ = _extract_QQ_terms(H_d, P)
+            if !isempty(V_QQ.terms)
+                H0 = normal_form(H_d - V_QQ)
+                V_total = normal_form(H_od + V_QQ)
+            end
         end
-    end
 
-    # Combine all generators
-    S_total = QuExpr()
-    for n = 1:order
-        if isassigned(S, n)
-            S_total = normal_form(S_total + S[n])
+        # Split perturbation into diagonal and off-diagonal parts
+        V_diag, V_od1 = decompose(V_total, P)
+
+        # Store generators at each order: S[n] = Sₙ (order gⁿ)
+        S = Vector{QuExpr}(undef, order)
+
+        # Store off-diagonal "potentials" that each Sₙ must cancel: Vₙ where [Sₙ, H₀] = -Vₙ
+        V_od = Vector{QuExpr}(undef, order)
+        V_od[1] = V_od1  # V₁ = off-diagonal part of perturbation
+
+        # Initialize effective Hamiltonian with diagonal part — accumulate as dict to avoid
+        # expensive Symbolics polynomial simplification on every normal_form call
+        H_eff_dict = Dict{QuTerm,Number}()
+        for (term, coeff) in normal_form(H0 + V_diag).terms
+            H_eff_dict[term] = coeff
         end
+
+        # ========== Order 1: [S₁, H₀] = -V ==========
+        S[1] = solve_for_generator(H0, V_od1, P)
+
+        # ========== Order 2 and beyond ==========
+        for n = 2:order
+            # Collect all contributions at order n from the BCH expansion
+            order_n_terms =
+                _collect_bch_terms_at_order_sequential(S, V_od, n, H0, V_total, P; parallel = parallel)
+            # Clear cache between orders to avoid unbounded growth
+            _clear_bch_cache!()
+
+            # NOTE: skip _simplify_expand_only to avoid Symbolics polynomial explosion.
+            # Decompose works correctly on raw expressions.
+
+            # Decompose into diagonal (→ H_eff) and off-diagonal (→ determines Sₙ)
+            order_n_diag, order_n_od = decompose(order_n_terms, P)
+
+            # Add diagonal contribution to H_eff dict (no normal_form)
+            for (term, coeff) in order_n_diag.terms
+                H_eff_dict[term] = get(H_eff_dict, term, 0) + coeff
+            end
+
+            # The off-diagonal part must be cancelled by [Sₙ, H₀]
+            V_od[n] = order_n_od
+
+            # Solve for Sₙ: [Sₙ, H₀] = -Vₙ
+            if !isempty(order_n_od.terms)
+                S[n] = solve_for_generator(H0, order_n_od, P)
+            else
+                S[n] = QuExpr()
+            end
+        end
+
+        # Convert accumulated dict back to QuExpr (no normal_form to avoid Symbolics explosion)
+        H_eff = QuExpr(H_eff_dict)
+
+        # Combine all generators
+        S_total = QuExpr()
+        for n = 1:order
+            if isassigned(S, n)
+                S_total = normal_form(S_total + S[n])
+            end
+        end
+
+        # Final simplification - only at the end, using specified mode
+        H_eff = simplify_coefficients(H_eff; mode = simplify_mode)
+
+        if simplify_generator
+            S_total = simplify_coefficients(S_total; mode = simplify_mode)
+        end
+
+        # Project the effective Hamiltonian onto subspace P
+        H_P = simplify_coefficients(project_to_subspace(H_eff, P); mode = simplify_mode)
+
+        return (H_eff = H_eff, S = S_total, H_P = H_P)
+    finally
+        set_fastmode_flat!(prev_fast)
     end
-
-    # Final simplification - only at the end, using specified mode
-    H_eff = simplify_coefficients(H_eff; mode = simplify_mode)
-
-    if simplify_generator
-        S_total = simplify_coefficients(S_total; mode = simplify_mode)
-    end
-
-    # Project the effective Hamiltonian onto subspace P
-    H_P = simplify_coefficients(project_to_subspace(H_eff, P); mode = simplify_mode)
-
-    return (H_eff = H_eff, S = S_total, H_P = H_P)
 end
 
 """
@@ -426,6 +449,264 @@ function _compute_work_item(
     end
 end
 
+# ======================================================================
+# Sequential BCH term collection with memoization (replaces compositions-based approach)
+# Instead of enumerating all integer compositions (which explodes at order 4+),
+# we compute nested commutators recursively and cache intermediate results.
+# ======================================================================
+
+# Memoization cache: (generator_indices_tuple, base_string) => QuExpr
+const _bch_cache = Dict{Any,QuExpr}()
+# Lock for thread safety
+const _bch_cache_lock = ReentrantLock()
+
+function _collapse_transition_ops(term::QuTerm)
+    ops = term.bares.v
+    isempty(ops) && return term
+
+    # Transition operators commute with bosonic/TLS operators; group transitions
+    # to expose products like Lᵢⱼ Lⱼₖ that can be reduced.
+    nontrans = BaseOperator[]
+    trans = BaseOperator[]
+    for op in ops
+        if op.t == Transition_
+            push!(trans, op)
+        else
+            push!(nontrans, op)
+        end
+    end
+
+    # Fast zero-prune: if two adjacent transition factors cannot compose
+    # (L[a,b]L[c,d] with b!=c), the whole term is zero.
+    for i = 1:(length(trans)-1)
+        op1 = trans[i]
+        op2 = trans[i + 1]
+        idx1 = get_transition_indices(op1)
+        idx2 = get_transition_indices(op2)
+        if idx1 !== nothing && idx2 !== nothing && op1.name == op2.name && op1.inds == op2.inds
+            _, b = idx1
+            c, _ = idx2
+            if b != c
+                return nothing
+            end
+        end
+    end
+
+    new_ops = vcat(nontrans, trans)
+    new_bares = isempty(new_ops) ? BaseOpProduct() : BaseOpProduct(new_ops)
+    return QuTerm(term.nsuminds, term.δs, term.params, term.expvals, term.corrs, new_bares)
+end
+
+function _collapse_transition_terms(expr::QuExpr)
+    result_terms = Dict{QuTerm,Number}()
+    for (term, coeff) in expr.terms
+        new_term = _collapse_transition_ops(term)
+        new_term === nothing && continue
+        result_terms[new_term] = get(result_terms, new_term, 0) + coeff
+    end
+    return QuExpr(result_terms)
+end
+
+function _clear_bch_cache!()
+    lock(_bch_cache_lock) do
+        empty!(_bch_cache)
+    end
+end
+
+"""
+    _nested_comm_memoized(gen_is::NTuple{K,Int}, base_symbol::String, S, V, V_od) where K
+
+Compute the nested commutator [S_{i₁}, [S_{i₂}, ..., [S_{iₖ}, base]...]] where
+base is V (if base_symbol = "V") or -V_od[inner_idx] (if base_symbol starts with "H0").
+
+Results are cached in _bch_cache for reuse across orders.
+"""
+function _nested_comm_memoized(
+    gen_is::NTuple{K,Int},
+    base_symbol::String,
+    S::Vector{QuExpr},
+    V::QuExpr,
+    V_od::Vector{QuExpr},
+) where {K}
+    # Check cache
+    cache_key = (gen_is, base_symbol)
+    cached = lock(_bch_cache_lock) do
+        get(_bch_cache, cache_key, nothing)
+    end
+    if cached !== nothing
+        return cached
+    end
+
+    if base_symbol == "V"
+        # V-based: all generator indices go into the nested commutator against V
+        result = multi_nested_commutator(QuExpr[S[i] for i in gen_is], V)
+    else  # "H0:3" means innermost = -V_od[3], outer generators are gen_is[1:end-1]
+        inner_idx = parse(Int, split(base_symbol, ":")[2])
+        if K == 1
+            # [S_i, H0] = -V_od[i] — just return the base directly (no outer generators)
+            result = -V_od[inner_idx]
+        else
+            # Outer generators = first K-1 indices, innermost = -V_od[last index]
+            outer_indices = gen_is[1:(end-1)]
+            outer_generators = QuExpr[S[i] for i in outer_indices]
+            result = multi_nested_commutator(outer_generators, -V_od[inner_idx])
+        end
+    end
+
+    # Cache result
+    lock(_bch_cache_lock) do
+        _bch_cache[cache_key] = result
+    end
+    return result
+end
+
+"""
+    _ordered_compositions(target::Int, k::Int, max_val::Int, S::Vector{QuExpr})
+
+Generate all ordered k-tuples of positive integers summing to target,
+where each value is ≤ max_val and appears in S (is assigned).
+
+Returns a materialized vector of index tuples.
+"""
+function _ordered_compositions(target::Int, k::Int, max_val::Int, S::Vector{QuExpr})
+    result = Vector{Vector{Int}}()
+    _ordered_compositions_rec!(result, Int[], target, k, max_val, S)
+    return result
+end
+
+function _ordered_compositions_rec!(
+    result::Vector{Vector{Int}},
+    current::Vector{Int},
+    remaining::Int,
+    remaining_slots::Int,
+    max_val::Int,
+    S::Vector{QuExpr},
+)
+    if remaining_slots == 0
+        if remaining == 0
+            push!(result, copy(current))
+        end
+        return
+    end
+
+    # Minimum value needed: at least remaining - (remaining_slots - 1) * max_val
+    # Maximum value allowed: min(max_val, remaining - (remaining_slots - 1) * 1)
+    min_val = max(1, remaining - (remaining_slots - 1) * max_val)
+    max_avail = min(max_val, remaining - (remaining_slots - 1))
+
+    for val = min_val:max_avail
+        if isassigned(S, val)
+            push!(current, val)
+            _ordered_compositions_rec!(
+                result, current, remaining - val, remaining_slots - 1, max_val, S
+            )
+            pop!(current)
+        end
+    end
+end
+
+"""
+    _collect_bch_terms_at_order_sequential(S, V_od, n, H0, V, P; parallel=false)
+
+Collect all BCH expansion terms at order n using sequential, memoized computation.
+
+Unlike the original compositions-based approach, this function:
+1. Enumerates only the UNIQUE generator-indexed nested commutators needed
+2. Caches all intermediate results (e.g., [S₁, V] computed once, reused in [S₂, [S₁, V]])
+3. Avoids re-computing the same commutator recursively
+
+The BCH expansion at order n involves:
+- For each k ≥ 1 nested commutators, generator orders i₁+...+iₖ summing to n-1 (V-base) or n (H0-base)
+- BCH coefficient 1/k!
+"""
+function _collect_bch_terms_at_order_sequential(
+    S::Vector{QuExpr},
+    V_od::Vector{QuExpr},
+    n::Int,
+    H0::QuExpr,
+    V::QuExpr,
+    P::Subspace;
+    parallel::Bool = false,
+)
+    result = QuExpr()
+    max_gen = n - 1  # only S₁...S_{n-1} are available
+
+    # Collect all unique generator-index tuples needed
+    # Structure: (indices_tuple, base_type) pairs
+    # base_type is :V or ("H0", inner_idx)
+
+    work_specs = Vector{Tuple{Vector{Int},Union{Symbol,Tuple{Symbol,Int}}}}()
+
+    # Precompute BCH coefficients 1/k! for all k needed
+    coeffs = Dict{Int,Rational{BigInt}}(k => big(1) // factorial(big(k)) for k = 1:n)
+
+    # Enumerate all k (nesting depth) and all permutations of generator indices
+    # that sum to the correct target
+    for k = 1:n
+        # V-based contributions: Σ i_j = n - 1, each i_j ≤ max_gen
+        target_V = n - 1
+        if target_V >= k
+            # Generate all ordered k-tuples of positive integers summing to target_V
+            for indices in _ordered_compositions(target_V, k, max_gen, S)
+                push!(work_specs, (indices, :V))
+            end
+        end
+
+        # H0-based contributions: Σ i_j = n, each i_j ≤ max_gen
+        # The innermost generator index determines the V_od term used
+        target_H0 = n
+        if target_H0 >= k
+            for indices in _ordered_compositions(target_H0, k, max_gen, S)
+                inner_idx = indices[end]
+                if isassigned(V_od, inner_idx) && !isempty(V_od[inner_idx].terms)
+                    push!(work_specs, (indices, (:H0, inner_idx)))
+                end
+            end
+        end
+    end
+
+    # Compute each unique contribution with memoization
+    num_specs = length(work_specs)
+    if parallel && n > 3 && Threads.nthreads() > 1 && num_specs > 1
+        results = Vector{QuExpr}(undef, num_specs)
+        Threads.@threads for i = 1:num_specs
+            idx, base_type = work_specs[i]
+            k = length(idx)
+            base_key = base_type isa Symbol ? "V" : "H0:$(base_type[2])"
+            results[i] = coeffs[k] * _nested_comm_memoized(
+                Tuple(idx), base_key, S, V, V_od
+            )
+        end
+        # Accumulate without normal_form to avoid Symbolics explosion
+        result_terms = Dict{QuTerm,Number}()
+        for r in results
+            for (term, coeff) in r.terms
+                result_terms[term] = get(result_terms, term, 0) + coeff
+            end
+        end
+        result = QuExpr(result_terms)
+    else
+        result_terms = Dict{QuTerm,Number}()
+        for (idx, base_type) in work_specs
+            k = length(idx)
+            base_key = base_type isa Symbol ? "V" : "H0:$(base_type[2])"
+            term = coeffs[k] * _nested_comm_memoized(
+                Tuple(idx), base_key, S, V, V_od
+            )
+            for (t, c) in term.terms
+                result_terms[t] = get(result_terms, t, 0) + c
+            end
+        end
+        result = QuExpr(result_terms)
+    end
+
+    if is_fastmode_flat()
+        result = _collapse_transition_terms(result)
+    end
+
+    return result
+end
+
 """
     _collect_bch_terms_at_order(S, V_od, n, H0, V, P; parallel=false)
 
@@ -498,23 +779,41 @@ function _collect_bch_terms_at_order(
 end
 
 """
-    sw_generator(H::QuExpr, P::Subspace; order::Int=1, include_QQ::Bool=true)
+    sw_generator(H::QuExpr, P::Subspace; order::Int=1, kwargs...)
 
 Compute only the generator S for the Schrieffer-Wolff transformation,
 without computing the full effective Hamiltonian.
 
-This is useful when you only need S, or want to manually compute
-the transformation using `bch_transform`.
+This is a convenience wrapper around `schrieffer_wolff` that returns only
+the generator S. It delegates to the full BCH-based algorithm, so it
+produces correct generators at any order.
+
+# Arguments
+- `H`: The full Hamiltonian
+- `P`: The subspace defining the block-diagonal structure
+- `order`: Perturbation order for S (default: 1)
+- `include_QQ`: Whether to treat Q↔Q couplings as perturbations (default: true)
+- `simplify_mode`: Simplification mode for final output (default: `:fast`)
+- `simplify_generator`: Whether to simplify the generator S (default: false)
+- `parallel`: Use multi-threading for orders > 3 (default: false)
+
+# Returns
+- The generator S of the transformation
 """
 function sw_generator(
     H::QuExpr,
     P::Subspace;
     order::Int = 1,
     include_QQ::Bool = true,
+    simplify_mode::Symbol = :fast,
+    simplify_generator::Bool = false,
+    parallel::Bool = false,
+    fastmode_flat::Bool = false,
 )
     H = normal_form(H)
     H_d, H_od = decompose(H, P)
 
+    # Extract Q↔Q couplings if requested
     H0 = H_d
     V_total = H_od
     if include_QQ
@@ -525,26 +824,29 @@ function sw_generator(
         end
     end
 
-    S_total = QuExpr()
-    _, current_od = decompose(V_total, P)
-
-    for n = 1:order
-        if isempty(current_od.terms)
-            break
-        end
-
-        S_n = solve_for_generator(H0, current_od, P)
-        S_total = simplify_coefficients(normal_form(S_total + S_n))
-
-        if n < order
-            # Compute next-order off-diagonal terms
-            comm_Sn_H = normal_form(comm(S_n, H))
-            _, comm_od = decompose(comm_Sn_H, P)
-            current_od = simplify_coefficients(normal_form(comm_od / factorial(n + 1)))
+    # For order 1, compute S₁ directly (the iterative approach works for n=1)
+    if order == 1
+        _, V_od1 = decompose(V_total, P)
+        S1 = solve_for_generator(H0, V_od1, P)
+        if simplify_generator
+            return simplify_coefficients(S1; mode = simplify_mode)
+        else
+            return S1
         end
     end
 
-    return simplify_coefficients(S_total)
+    # For order ≥ 2, delegate to the full BCH-based algorithm
+    result = schrieffer_wolff(
+        H, P;
+        order = order,
+        diagonal_only = false,
+        include_QQ = include_QQ,
+        simplify_mode = simplify_mode,
+        simplify_generator = simplify_generator,
+        parallel = parallel,
+        fastmode_flat = fastmode_flat,
+    )
+    return result.S
 end
 
 """
@@ -558,10 +860,12 @@ This replaces diagonal operators by their eigenvalues in P:
 - a†a → eigenvalue (e.g., 0 for vacuum)
 
 And removes any remaining off-diagonal terms.
+
+Returns a projected `QuExpr`. For performance, the return value is not
+automatically passed through `normal_form`; callers that require canonical
+ordering should apply `normal_form` explicitly.
 """
 function project_to_subspace(H::QuExpr, P::Subspace)
-    H = normal_form(H)
-
     # First, remove off-diagonal terms
     H_d = diagonal_part(H, P)
 
@@ -600,7 +904,7 @@ function project_to_subspace(H::QuExpr, P::Subspace)
         )
     end
 
-    return normal_form(result)
+    return result
 end
 
 """
@@ -629,7 +933,7 @@ function substitute_number_operator_projection(H::QuExpr, constraint::OperatorCo
     create_type = is_boson ? BosonCreate_ : FermionCreate_
     destroy_type = is_boson ? BosonDestroy_ : FermionDestroy_
 
-    result = QuExpr()
+    result_terms = Dict{QuTerm,Number}()
 
     for (term, coeff) in H.terms
         term_ops = term.bares.v
@@ -705,10 +1009,14 @@ function substitute_number_operator_projection(H::QuExpr, constraint::OperatorCo
             continue
         end
 
-        result = result + coeff * eigenvalue_factor * QuExpr(new_term)
+        new_coeff = coeff * eigenvalue_factor
+        result_terms[new_term] = get(result_terms, new_term, 0) + new_coeff
     end
 
-    return normal_form(result)
+    if is_fastmode_flat()
+        return QuExpr(result_terms)
+    end
+    return normal_form(QuExpr(result_terms))
 end
 
 """
@@ -718,7 +1026,7 @@ Substitute σ⁺σ⁻ (or σ⁺(i)σ⁻(i)) by its eigenvalue in the spin subspa
 pm_eigenvalue is 0 for spin-down, 1 for spin-up.
 """
 function substitute_spin_projection(H::QuExpr, spin_name, spin_inds, pm_eigenvalue)
-    result = QuExpr()
+    result_terms = Dict{QuTerm,Number}()
 
     for (term, coeff) in H.terms
         ops = term.bares.v
@@ -770,10 +1078,15 @@ function substitute_spin_projection(H::QuExpr, spin_name, spin_inds, pm_eigenval
                 BaseOpProduct(new_ops),
             )
         end
-        result = result + coeff * eigenvalue_factor * QuExpr(new_term)
+
+        new_coeff = coeff * eigenvalue_factor
+        result_terms[new_term] = get(result_terms, new_term, 0) + new_coeff
     end
 
-    return normal_form(result)
+    if is_fastmode_flat()
+        return QuExpr(result_terms)
+    end
+    return normal_form(QuExpr(result_terms))
 end
 
 """
@@ -793,7 +1106,7 @@ For eigenvalue 0 (we are NOT in state k):
 trans_info contains: name, inds, N, state (the constrained state k), eigenvalue
 """
 function substitute_transition_projections(H::QuExpr, trans_info::NamedTuple)
-    result = QuExpr()
+    result_terms = Dict{QuTerm,Number}()
 
     constrained_state = trans_info.state
     eigenvalue = trans_info.eigenvalue
@@ -872,10 +1185,15 @@ function substitute_transition_projections(H::QuExpr, trans_info::NamedTuple)
                 BaseOpProduct(new_ops),
             )
         end
-        result = result + coeff * eigenvalue_factor * QuExpr(new_term)
+
+        new_coeff = coeff * eigenvalue_factor
+        result_terms[new_term] = get(result_terms, new_term, 0) + new_coeff
     end
 
-    return normal_form(result)
+    if is_fastmode_flat()
+        return QuExpr(result_terms)
+    end
+    return normal_form(QuExpr(result_terms))
 end
 
 """
@@ -895,7 +1213,7 @@ function substitute_operator_eigenvalue(H::QuExpr, op::QuExpr, eigenvalue::Numbe
     op_term, op_coeff = first(op.terms)
     op_coeff == 1 || return H  # Has coefficient, skip
 
-    result = QuExpr()
+    result_terms = Dict{QuTerm,Number}()
 
     for (term, coeff) in H.terms
         # Check if this term contains the operator exactly
@@ -941,208 +1259,19 @@ function substitute_operator_eigenvalue(H::QuExpr, op::QuExpr, eigenvalue::Numbe
                         BaseOpProduct(new_ops),
                     )
                 end
-                result = result + coeff * eigenvalue_factor * QuExpr(new_term)
+                new_coeff = coeff * eigenvalue_factor
+                result_terms[new_term] = get(result_terms, new_term, 0) + new_coeff
                 continue
             end
         end
 
-        # Handle a†a case (number operator)
-        if length(op_term.bares.v) == 2 && length(term.bares.v) >= 2
-            # Check if term contains the number operator
-            # This is more complex - for now, just pass through
-        end
-
         if !matched
-            result = result + coeff * QuExpr(term)
+            result_terms[term] = get(result_terms, term, 0) + coeff
         end
     end
 
-    return normal_form(result)
-end
-
-# =============================================================================
-# SymSum/SymExpr Extension for Multi-Atom/Multi-Site Systems
-# =============================================================================
-
-import ..UnitaryTransformations: SymSum, SymProd, SymExpr, AbstractSymbolicAggregate
-
-"""
-    project_to_subspace(s::SymSum, P::Subspace)
-
-Project a symbolic sum onto the subspace P.
-
-The projection is applied to the inner expression of the sum. If the inner
-expression projects to zero (e.g., σ⁺σ⁻ in spin-down subspace), the entire
-sum becomes zero.
-
-# Example
-For `Σᵢ σ⁺(i)σ⁻(i)` with P = Subspace(σz() => -1):
-- The inner term σ⁺σ⁻ → 0 for spin-down
-- Therefore the entire sum → 0
-"""
-function project_to_subspace(s::SymSum, P::Subspace)
-    inner_proj = project_to_subspace(s.expr, P)
-    # If the inner expression is zero, the whole sum is zero
-    if iszero(inner_proj)
-        return inner_proj  # Return QuExpr(0)
+    if is_fastmode_flat()
+        return QuExpr(result_terms)
     end
-    return SymSum(inner_proj, s.index, s.excluded)
-end
-
-"""
-    project_to_subspace(s::SymProd, P::Subspace)
-
-Project a symbolic product onto the subspace P.
-"""
-function project_to_subspace(s::SymProd, P::Subspace)
-    inner_proj = project_to_subspace(s.expr, P)
-    if iszero(inner_proj)
-        return inner_proj
-    end
-    return SymProd(inner_proj, s.index, s.excluded)
-end
-
-"""
-    project_to_subspace(e::SymExpr, P::Subspace)
-
-Project a symbolic expression onto the subspace P.
-
-This applies `project_to_subspace` to both the scalar (QuExpr) part and
-all symbolic aggregate terms (SymSum, SymProd).
-
-# Notes
-- Cross-site terms like `Σᵢ≠ⱼ σ⁺(i)σ⁻(j)` are kept (they don't involve
-  single-site projections that would set them to zero)
-- Same-site terms like `Σᵢ σ⁺(i)σ⁻(i)` become zero if P is spin-down
-
-# Example
-```julia
-using QuantumAlgebra, UnitaryTransformations
-import QuantumAlgebra: sumindex, SymSum, SymExpr
-
-i = sumindex(1)
-H = SymExpr(a'()*a()) + SymSum(σz(i)/2, i)
-
-P = Subspace(a'()*a() => 0, σz() => -1)
-H_P = project_to_subspace(H, P)
-# H_P will have a†a → 0 and Σᵢ σz(i)/2 → Σᵢ(-1/2) = -N/2 (symbolic)
-```
-"""
-function project_to_subspace(e::SymExpr, P::Subspace)
-    # Project the scalar (QuExpr) part
-    scalar_proj = project_to_subspace(e.scalar, P)
-
-    # Project each symbolic aggregate term
-    projected_terms = Tuple{Number,AbstractSymbolicAggregate}[]
-
-    for (coeff, agg) in e.terms
-        agg_proj = project_to_subspace(agg, P)
-        # If it's still a SymSum/SymProd, keep it; if it reduced to QuExpr, add to scalar
-        if agg_proj isa AbstractSymbolicAggregate
-            push!(projected_terms, (coeff, agg_proj))
-        elseif agg_proj isa QuExpr
-            scalar_proj = scalar_proj + coeff * agg_proj
-        end
-    end
-
-    # If no aggregates remain, return just the scalar
-    if isempty(projected_terms)
-        return scalar_proj
-    end
-
-    return SymExpr(projected_terms, scalar_proj)
-end
-
-"""
-    schrieffer_wolff(H::SymExpr, P::Subspace; order::Int=2, ...)
-
-Perform the Schrieffer-Wolff transformation on a Hamiltonian expressed with
-symbolic sums (SymExpr).
-
-This extends the standard SW transformation to handle Hamiltonians like the
-Tavis-Cummings model:
-
-    H = ω_c a†a + Σᵢ (Δ/2)σz(i) + Σᵢ g(a†σ⁻(i) + aσ⁺(i))
-
-The key capability is correct handling of:
-- Same-site contributions: Σᵢ [Aᵢ, Bᵢ]
-- Cross-site contributions: Σᵢ Σⱼ≠ᵢ [Aᵢ, Bⱼ] (exchange interactions)
-
-# Arguments
-Same as the `schrieffer_wolff(H::QuExpr, ...)` method.
-
-# Returns
-- Named tuple `(H_eff, S, H_P)` where H_eff and S may be SymExpr types.
-
-# Example
-```julia
-using QuantumAlgebra, UnitaryTransformations, Symbolics
-import QuantumAlgebra: sumindex, SymSum, SymExpr
-
-@variables ω_c Δ g
-
-i = sumindex(1)
-H = SymExpr(ω_c * a'()*a()) + 
-    SymSum(Δ/2 * σz(i), i) + 
-    SymSum(g * (a'()*σm(i) + a()*σp(i)), i)
-
-P = Subspace(a'()*a() => 0)  # Zero photon sector
-result = schrieffer_wolff(H, P; order=2)
-```
-
-# Notes
-- Currently only supports order=2 for SymExpr inputs
-- The effective Hamiltonian includes both same-site and cross-site terms
-- For higher orders, expand the SymSum to explicit indices first
- - `include_QQ` affects only QuExpr inputs (ignored here)
-"""
-function schrieffer_wolff(
-    H::SymExpr,
-    P::Subspace;
-    order::Int = 2,
-    simplify_generator::Bool = false,
-    simplify_mode::Symbol = :fast,
-    diagonal_only::Bool = false,
-    include_QQ::Bool = true,
-    parallel::Bool = false,
-)
-    order >= 2 || throw(ArgumentError("order must be at least 2, got $order"))
-    order == 2 ||
-        @warn "SymExpr input: only order=2 is fully supported. Higher orders may not include all cross-site contributions."
-
-    # Decompose H = H₀ (diagonal) + V (off-diagonal)
-    H0, V = decompose(H, P)
-
-    # For order 2, we use the simplified algorithm:
-    # H_eff = H₀ + (1/2)[S₁, V]
-    # where [S₁, H₀] = -V
-
-    # Solve for the first-order generator
-    S1 = solve_for_generator(H0, V, P)
-
-    # Compute the second-order correction: (1/2)[S₁, V]
-    comm_S1_V = comm(S1, V)
-
-    # Extract the diagonal part of the second-order correction
-    second_order_diag, _ = decompose(comm_S1_V, P)
-
-    # The effective Hamiltonian is H₀ + (1/2)[S₁, V]_diagonal
-    H_eff = H0 + (1 // 2) * second_order_diag
-
-    # For order > 2, we would need additional iterations
-    # Currently not fully implemented for SymExpr
-
-    # Project to subspace P
-    H_P = project_to_subspace(H_eff, P)
-
-    return (H_eff = H_eff, S = S1, H_P = H_P)
-end
-
-"""
-    schrieffer_wolff(H::SymSum, P::Subspace; order::Int=2, ...)
-
-Convenience method: wrap a single SymSum in a SymExpr and call the main method.
-"""
-function schrieffer_wolff(H::SymSum, P::Subspace; order::Int = 2, kwargs...)
-    return schrieffer_wolff(SymExpr(H), P; order = order, kwargs...)
+    return normal_form(QuExpr(result_terms))
 end

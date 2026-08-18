@@ -1,0 +1,34 @@
+SW vs ED check (3-level ladder, order=4, include_QQ=true)
+
+Model:
+  H0 = Δ L22 + (Δ+δ) L33 + ω a†a
+  V  = g1(L12 a† + L21 a) + g2(L23 a† + L32 a)
+  P  = L11
+
+Parameters:
+  Δ=1.0, δ=0.8, ω=0.2
+  eps list = [0.01, 0.015, 0.02, 0.03, 0.04]
+  Nph list = [8, 10, 12]
+
+Nph=8
+  max |dA|      = 0.000e+00
+  max |dB|      = 2.484e-08
+  max |dC|      = 2.772e-08
+  max |mix dC|  = 4.620e-08
+  max |E3 err|  = 2.079e-08
+
+Nph=10
+  max |dA|      = 0.000e+00
+  max |dB|      = 2.484e-08
+  max |dC|      = 2.772e-08
+  max |mix dC|  = 4.620e-08
+  max |E3 err|  = 2.079e-08
+
+Nph=12
+  max |dA|      = 0.000e+00
+  max |dB|      = 2.484e-08
+  max |dC|      = 2.772e-08
+  max |mix dC|  = 4.620e-08
+  max |E3 err|  = 2.079e-08
+
+Per-point rows are in sw_ed_check.csv

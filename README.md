@@ -33,23 +33,18 @@ result = schrieffer_wolff(H, P; order=2)
 println(result.H_P)  # -Δ/2 + (-g²/Δ) a†a  ← dispersive shift χ = -g²/Δ
 ```
 
-## Multi-Atom Systems with Symbolic Sums
+## Multi-Atom Systems with ∑ (Einstein Summation)
 
-For systems with many identical particles, use `SymSum` to represent symbolic sums that correctly generate **exchange interactions**:
+For systems with many identical particles, use the `∑` function for symbolic sums:
 
 ```julia
 using UnitaryTransformations, QuantumAlgebra, Symbolics
-import QuantumAlgebra: sumindex, SymSum, SymExpr
 
 QuantumAlgebra.use_σpm(true)
 @variables ω_c Δ g
 
-i = sumindex(1)
-
 # Tavis-Cummings Hamiltonian: N atoms coupled to a cavity
-H = SymExpr(ω_c * a'()*a()) + 
-    SymSum(Δ/2 * σz(i), i) + 
-    SymSum(g * (a'()*σm(i) + a()*σp(i)), i)
+H = ω_c * a'()*a() + ∑(:i, Δ/2 * σz(:i) + g * (a'()*σm(:i) + a()*σp(:i)))
 
 P = Subspace(a'()*a() => 0)  # Zero photon sector
 result = schrieffer_wolff(H, P; order=2)
@@ -57,9 +52,12 @@ result = schrieffer_wolff(H, P; order=2)
 # The effective Hamiltonian includes exchange terms: χ Σᵢ≠ⱼ σ⁺ᵢσ⁻ⱼ
 ```
 
-The `SymSum` type correctly handles:
-- **Same-site terms**: `Σᵢ [Aᵢ, Bᵢ]`
-- **Cross-site terms**: `Σᵢ Σⱼ≠ᵢ [Aᵢ, Bⱼ]` (exchange interactions!)
+The `∑` function embeds sums directly into `QuExpr`, so everything works with existing functions (`comm`, `normal_form`, `decompose`, `schrieffer_wolff`).
+
+Use multi-index sums for cross-site interactions:
+```julia
+∑((:i,:j), σx(:i) * σx(:j))  # Σᵢⱼ σˣᵢ σˣⱼ
+```
 
 ## Transformations
 
@@ -76,7 +74,7 @@ The `SymSum` type correctly handles:
 | Bosonic modes | `a()`, `a'()` |
 | N-level atoms | `nlevel_ops(N, :name)` |
 | SU(N) algebras | `su_generators(N, :name)` |
-| Multi-atom systems | `SymSum(expr, index)` for symbolic sums |
+| Multi-atom systems | `∑(:i, expr)` for Einstein summation |
 | Hybrid systems | Any combination |
 
 ## Features
@@ -84,7 +82,7 @@ The `SymSum` type correctly handles:
 - **Symbolic results**: Get analytical expressions like `-g²/Δ`, not floating-point numbers
 - **Arbitrary perturbation order**: Compute to order 2, 4, 6+ with optional parallel acceleration
 - **Automatic method selection**: Eigenoperator method for TLS/bosons, matrix-element method for SU(N)
-- **Symbolic sums**: `SymSum` correctly handles multi-particle commutators with exchange terms
+- **Symbolic sums**: `∑` embeds sums into QuExpr for multi-particle commutators
 
 ```julia
 # Higher-order with parallelization

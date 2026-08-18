@@ -529,35 +529,25 @@ H = \omega_c a^\dagger a + \sum_i \frac{\Delta_i}{2}\sigma_z^{(i)} + \sum_i g_i 
 
 This model describes multi-qubit circuit QED systems and collective atom-light interactions.
 
-#### Using Symbolic Sums (Recommended for N Atoms)
+#### Using `∑` (Einstein summation) for N Atoms
 
-For systems with an arbitrary number of atoms, use `SymSum` and `SymExpr` to represent the Hamiltonian symbolically:
+For systems with an arbitrary number of atoms, use the `∑` function to represent the Hamiltonian symbolically:
 
 ```julia
-using UnitaryTransformations
-using QuantumAlgebra
-using Symbolics
-import QuantumAlgebra: sumindex, SymSum, SymExpr
+using UnitaryTransformations, QuantumAlgebra, Symbolics
 
 QuantumAlgebra.use_σpm(true)
 
-@variables ω_c Δ g  # cavity freq, detuning, coupling
+@variables ω_c Δ g
 
-# Create a sum index representing Σᵢ over all atoms
-i = sumindex(1)
+# N-atom Tavis-Cummings with Einstein sums
+H = ω_c * a'()*a() + ∑(:i, Δ/2 * σz(:i) + g * (a'()*σm(:i) + a()*σp(:i)))
 
-# Build Tavis-Cummings Hamiltonian with symbolic sums
-H = SymExpr(ω_c * a'()*a()) + 
-    SymSum(Δ/2 * σz(i), i) + 
-    SymSum(g * (a'()*σm(i) + a()*σp(i)), i)
-
-# Zero-photon subspace (dispersive regime)
 P = Subspace(a'()*a() => 0)
-
 result = schrieffer_wolff(H, P; order=2)
 ```
 
-**Key advantage**: When computing commutators like ``[\sum_i S_i, \sum_j V_j]``, the `SymSum` type correctly separates:
+**Key advantage**: When computing commutators like ``[\sum_i S_i, \sum_j V_j]``, the `∑` type correctly separates:
 - **Same-site terms** (``i = j``): ``\sum_i [S_i, V_i]``  
 - **Cross-site terms** (``i \neq j``): ``\sum_i \sum_{j \neq i} [S_i, V_j]``
 
@@ -637,11 +627,11 @@ result = schrieffer_wolff(H, P; order=2)
 # Directly contains: χ(σ⁺₁σ⁻₂ + σ⁺₂σ⁻₁)
 ```
 
-This approach is simpler for small N but doesn't scale to arbitrary N like `SymSum`.
+This approach is simpler for small N and works directly with `QuExpr` inputs.
 
-#### Projecting SymExpr to Subspace
+#### Projecting `QuExpr` Hamiltonians to Subspace
 
-The `project_to_subspace` function works with `SymExpr`, allowing you to project the effective Hamiltonian onto the low-energy subspace:
+The `project_to_subspace` function projects `QuExpr` effective Hamiltonians onto the low-energy subspace:
 
 ```julia
 # Full effective Hamiltonian (block-diagonal)
@@ -655,11 +645,11 @@ H_P = project_to_subspace(H_eff, P)
 H_P = result.H_P
 ```
 
-**What `project_to_subspace` does for SymExpr:**
+**What `project_to_subspace` does:**
 
 1. **Removes off-diagonal operators** — terms like ``\sigma^+``, ``\sigma^-`` that connect P and Q
 2. **Substitutes spin projections** — ``\sigma^+\sigma^-`` becomes 0 (spin-down) or 1 (spin-up)
-3. **Preserves symbolic sums** — ``\sum_i \sigma_z^{(i)}`` remains as a symbolic sum
+3. **Keeps diagonal operators symbolic** — e.g. ``a^\dagger a`` remains symbolic unless constrained
 
 **Example:**
 ```julia
@@ -670,7 +660,7 @@ P = Subspace(a'()*a() => 0, σz() => -1)
 H_P = project_to_subspace(result.H_eff, P)
 ```
 
-**Note:** The projection substitutes spin operators but keeps bosonic operators like ``a^\dagger a`` symbolically (they are diagonal but not numerically evaluated). This allows the result to remain valid for any photon number within the subspace constraints.
+**Note:** The projection substitutes constrained operators but keeps unconstrained diagonal operators (like ``a^\dagger a``) symbolic.
 
 ---
 

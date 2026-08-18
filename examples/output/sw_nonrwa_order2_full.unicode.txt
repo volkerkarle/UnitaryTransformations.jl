@@ -1,0 +1,26 @@
+# 3-level NON-RWA ladder + cavity SW (include_QQ=true)
+# Projection: L11 => 1
+# Order: 2
+# Coupling: g1(L12+L21)(a+a') + g2(L23+L32)(a+a')
+# Unicode mode: keeps Greek letters and uses a'
+# Detunings: d1 = Δ - ω, d3 = Δ + δ - 2ω
+# Substitution: Δ => d1 + ω, δ => d3 - d1 + ω
+
+[Input Hamiltonian]
+H = Δ L²² + (Δ + δ) L³³ + ω a' a + g₁ a' L¹² + g₁ a' L²¹ + g₂ a' L²³ + g₂ a' L³² + g₁ a L¹² + g₁ a L²¹ + g₂ a L²³ + g₂ a L³²
+
+[Generator]
+S = <not loaded>
+
+[Effective Hamiltonian (raw)]
+Hₑff = 0
+
+[Effective Hamiltonian (detuning vars)]
+Hₑff = 0
+
+[Projected Hamiltonian (raw)]
+Hₚ = ((-(g₁²)) / (Δ + ω) + (1/2) ⋅ ((-(g₁²)) / (-Δ - ω) + (g₁²) / (Δ + ω)) + (g₁²) / (-Δ - ω)) + ((-(g₁²)) / (Δ + ω) + (g₁²) / (-Δ + ω) + (1/2) ⋅ ((-(g₁²)) / (-Δ + ω) + (g₁²) / (Δ + ω))) a'² + ((-(g₁²)) / (Δ + ω) + (1/2) ⋅ ((g₁²) / (Δ - ω) + (-(g₁²)) / (-Δ + ω) + (-(g₁²)) / (-Δ - ω) + (g₁²) / (Δ + ω)) + (-(g₁²)) / (Δ - ω) + (g₁²) / (-Δ + ω) + (g₁²) / (-Δ - ω) + ω) a' a + ((1/2) ⋅ ((g₁²) / (Δ - ω) + (-(g₁²)) / (-Δ - ω)) + (-(g₁²)) / (Δ - ω) + (g₁²) / (-Δ - ω)) a²
+
+[Projected Hamiltonian (detuning vars)]
+Hₚ = ((-(g₁²)) / (Δ + ω) + (1/2) ⋅ ((-(g₁²)) / (-Δ - ω) + (g₁²) / (Δ + ω)) + (g₁²) / (-Δ - ω)) + ((-(g₁²)) / (Δ + ω) + (g₁²) / (-Δ + ω) + (1/2) ⋅ ((-(g₁²)) / (-Δ + ω) + (g₁²) / (Δ + ω))) a'² + ((-(g₁²)) / (Δ + ω) + (1/2) ⋅ ((g₁²) / (Δ - ω) + (-(g₁²)) / (-Δ + ω) + (-(g₁²)) / (-Δ - ω) + (g₁²) / (Δ + ω)) + (-(g₁²)) / (Δ - ω) + (g₁²) / (-Δ + ω) + (g₁²) / (-Δ - ω) + ω) a' a + ((1/2) ⋅ ((g₁²) / (Δ - ω) + (-(g₁²)) / (-Δ - ω)) + (-(g₁²)) / (Δ - ω) + (g₁²) / (-Δ - ω)) a²
+
