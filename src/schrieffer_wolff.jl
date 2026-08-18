@@ -248,8 +248,15 @@ function schrieffer_wolff(
         # ========== Order 2 and beyond ==========
         for n = 2:order
             # Collect all contributions at order n from the BCH expansion
-            order_n_terms =
-                _collect_bch_terms_at_order_sequential(S, V_od, n, H0, V_total, P; parallel = parallel)
+            order_n_terms = _collect_bch_terms_at_order_sequential(
+                S,
+                V_od,
+                n,
+                H0,
+                V_total,
+                P;
+                parallel = parallel,
+            )
             # Clear cache between orders to avoid unbounded growth
             _clear_bch_cache!()
 
@@ -296,6 +303,83 @@ function schrieffer_wolff(
         # Project the effective Hamiltonian onto subspace P
         H_P = simplify_coefficients(project_to_subspace(H_eff, P); mode = simplify_mode)
 
+        return (H_eff = H_eff, S = S_total, H_P = H_P)
+    finally
+        set_fastmode_flat!(prev_fast)
+    end
+end
+
+"""
+    schrieffer_wolff(H0, perturbations, P; order=maximum(keys(perturbations)), ...)
+
+Perform a Schrieffer-Wolff expansion with explicitly graded perturbations.
+`perturbations[n]` is the complete perturbation of physical order `n`, including
+its P-P, P-Q, and Q-Q parts. This form is required when the Hamiltonian contains
+terms of different physical orders, such as `V = O(g)` and `W = O(g^2)`.
+"""
+function schrieffer_wolff(
+    H0::QuExpr,
+    perturbations::AbstractDict,
+    P::Subspace;
+    order::Int = maximum(Int(k) for k in keys(perturbations)),
+    simplify_generator::Bool = false,
+    simplify_mode::Symbol = :fast,
+    parallel::Bool = false,
+    fastmode_flat::Bool = false,
+)
+    order >= 1 || throw(ArgumentError("order must be at least 1, got $order"))
+    isempty(perturbations) && throw(ArgumentError("perturbations must not be empty"))
+    if parallel
+        @warn "Explicitly graded SW currently uses sequential BCH collection"
+    end
+
+    V_orders = Dict{Int,QuExpr}()
+    for (grade, perturbation) in perturbations
+        grade isa Integer || throw(ArgumentError("perturbation grades must be integers"))
+        grade >= 1 || throw(ArgumentError("perturbation grades must be positive"))
+        perturbation isa QuExpr ||
+            throw(ArgumentError("each graded perturbation must be a QuExpr"))
+        grade <= order || continue
+        V_orders[Int(grade)] = normal_form(perturbation)
+    end
+
+    prev_fast = is_fastmode_flat()
+    set_fastmode_flat!(fastmode_flat)
+    try
+        H0 = normal_form(H0)
+        _, H0_od = decompose(H0, P)
+        isempty(H0_od.terms) ||
+            throw(ArgumentError("H0 must be block-diagonal with respect to P"))
+
+        S = Vector{QuExpr}(undef, order)
+        V_od = Vector{QuExpr}(undef, order)
+        H_eff_dict = Dict{QuTerm,Number}(H0.terms)
+
+        for n = 1:order
+            order_n_terms = _collect_bch_terms_at_physical_order(S, V_od, V_orders, n)
+            order_n_diag, order_n_od = decompose(order_n_terms, P)
+
+            for (term, coeff) in order_n_diag.terms
+                H_eff_dict[term] = get(H_eff_dict, term, 0) + coeff
+            end
+
+            V_od[n] = order_n_od
+            S[n] =
+                isempty(order_n_od.terms) ? QuExpr() :
+                solve_for_generator(H0, order_n_od, P)
+        end
+
+        H_eff = simplify_coefficients(QuExpr(H_eff_dict); mode = simplify_mode)
+
+        S_total = QuExpr()
+        for n = 1:order
+            S_total = normal_form(S_total + S[n])
+        end
+        if simplify_generator
+            S_total = simplify_coefficients(S_total; mode = simplify_mode)
+        end
+
+        H_P = simplify_coefficients(project_to_subspace(H_eff, P); mode = simplify_mode)
         return (H_eff = H_eff, S = S_total, H_P = H_P)
     finally
         set_fastmode_flat!(prev_fast)
@@ -460,51 +544,77 @@ const _bch_cache = Dict{Any,QuExpr}()
 # Lock for thread safety
 const _bch_cache_lock = ReentrantLock()
 
-function _collapse_transition_ops(term::QuTerm)
-    ops = term.bares.v
-    isempty(ops) && return term
+"""
+    _canonicalize_operator_terms(expr::QuExpr)
 
-    # Transition operators commute with bosonic/TLS operators; group transitions
-    # to expose products like Lᵢⱼ Lⱼₖ that can be reduced.
-    nontrans = BaseOperator[]
-    trans = BaseOperator[]
-    for op in ops
-        if op.t == Transition_
-            push!(trans, op)
-        else
-            push!(nontrans, op)
+Normal-order operator products without exposing their symbolic coefficients to
+`normal_form`. Flat commutators stay inexpensive, while transition contractions
+and boson commutators are resolved before decomposition and projection.
+"""
+function _canonicalize_operator_terms(expr::QuExpr)
+    result_terms = Dict{QuTerm,Number}()
+    for (term, coeff) in expr.terms
+        unit_expr = QuExpr(Dict{QuTerm,Number}(term => 1))
+        for (normal_term, normal_coeff) in normal_form(unit_expr).terms
+            result_terms[normal_term] =
+                get(result_terms, normal_term, 0) + coeff * normal_coeff
+        end
+    end
+    return QuExpr(result_terms)
+end
+
+"""Collect all BCH contributions at one physical order for graded perturbations."""
+function _collect_bch_terms_at_physical_order(
+    S::Vector{QuExpr},
+    V_od::Vector{QuExpr},
+    V_orders::Dict{Int,QuExpr},
+    n::Int,
+)
+    result_terms = Dict{QuTerm,Number}()
+    max_gen = n - 1
+
+    function accumulate!(expr::QuExpr, weight::Number = 1)
+        for (term, coeff) in expr.terms
+            result_terms[term] = get(result_terms, term, 0) + weight * coeff
         end
     end
 
-    # Fast zero-prune: if two adjacent transition factors cannot compose
-    # (L[a,b]L[c,d] with b!=c), the whole term is zero.
-    for i = 1:(length(trans)-1)
-        op1 = trans[i]
-        op2 = trans[i + 1]
-        idx1 = get_transition_indices(op1)
-        idx2 = get_transition_indices(op2)
-        if idx1 !== nothing && idx2 !== nothing && op1.name == op2.name && op1.inds == op2.inds
-            _, b = idx1
-            c, _ = idx2
-            if b != c
-                return nothing
+    # A perturbation of grade r contributes directly at n=r, and through
+    # commutators whose generator grades sum to n-r.
+    for base_order in sort!(collect(keys(V_orders)))
+        base_order > n && continue
+        base = V_orders[base_order]
+        target = n - base_order
+        if target == 0
+            accumulate!(base)
+            continue
+        end
+
+        for k = 1:target
+            weight = big(1) // factorial(big(k))
+            for indices in _ordered_compositions(target, k, max_gen, S)
+                generators = QuExpr[S[i] for i in indices]
+                accumulate!(multi_nested_commutator(generators, base), weight)
             end
         end
     end
 
-    new_ops = vcat(nontrans, trans)
-    new_bares = isempty(new_ops) ? BaseOpProduct() : BaseOpProduct(new_ops)
-    return QuTerm(term.nsuminds, term.δs, term.params, term.expvals, term.corrs, new_bares)
-end
-
-function _collapse_transition_terms(expr::QuExpr)
-    result_terms = Dict{QuTerm,Number}()
-    for (term, coeff) in expr.terms
-        new_term = _collapse_transition_ops(term)
-        new_term === nothing && continue
-        result_terms[new_term] = get(result_terms, new_term, 0) + coeff
+    # H0-based terms contain at least two generators here. The missing k=1
+    # contribution is [S_n,H0], which is chosen after decomposing this result.
+    for k = 2:n
+        weight = big(1) // factorial(big(k))
+        for indices in _ordered_compositions(n, k, max_gen, S)
+            inner_idx = indices[end]
+            if isassigned(V_od, inner_idx) && !isempty(V_od[inner_idx].terms)
+                outer_generators = QuExpr[S[i] for i in indices[1:(end-1)]]
+                term = multi_nested_commutator(outer_generators, -V_od[inner_idx])
+                accumulate!(term, weight)
+            end
+        end
     end
-    return QuExpr(result_terms)
+
+    result = QuExpr(result_terms)
+    return is_fastmode_flat() ? _canonicalize_operator_terms(result) : result
 end
 
 function _clear_bch_cache!()
@@ -598,7 +708,12 @@ function _ordered_compositions_rec!(
         if isassigned(S, val)
             push!(current, val)
             _ordered_compositions_rec!(
-                result, current, remaining - val, remaining_slots - 1, max_val, S
+                result,
+                current,
+                remaining - val,
+                remaining_slots - 1,
+                max_val,
+                S,
             )
             pop!(current)
         end
@@ -673,9 +788,7 @@ function _collect_bch_terms_at_order_sequential(
             idx, base_type = work_specs[i]
             k = length(idx)
             base_key = base_type isa Symbol ? "V" : "H0:$(base_type[2])"
-            results[i] = coeffs[k] * _nested_comm_memoized(
-                Tuple(idx), base_key, S, V, V_od
-            )
+            results[i] = coeffs[k] * _nested_comm_memoized(Tuple(idx), base_key, S, V, V_od)
         end
         # Accumulate without normal_form to avoid Symbolics explosion
         result_terms = Dict{QuTerm,Number}()
@@ -690,9 +803,7 @@ function _collect_bch_terms_at_order_sequential(
         for (idx, base_type) in work_specs
             k = length(idx)
             base_key = base_type isa Symbol ? "V" : "H0:$(base_type[2])"
-            term = coeffs[k] * _nested_comm_memoized(
-                Tuple(idx), base_key, S, V, V_od
-            )
+            term = coeffs[k] * _nested_comm_memoized(Tuple(idx), base_key, S, V, V_od)
             for (t, c) in term.terms
                 result_terms[t] = get(result_terms, t, 0) + c
             end
@@ -701,7 +812,7 @@ function _collect_bch_terms_at_order_sequential(
     end
 
     if is_fastmode_flat()
-        result = _collapse_transition_terms(result)
+        result = _canonicalize_operator_terms(result)
     end
 
     return result
@@ -837,7 +948,8 @@ function sw_generator(
 
     # For order ≥ 2, delegate to the full BCH-based algorithm
     result = schrieffer_wolff(
-        H, P;
+        H,
+        P;
         order = order,
         diagonal_only = false,
         include_QQ = include_QQ,

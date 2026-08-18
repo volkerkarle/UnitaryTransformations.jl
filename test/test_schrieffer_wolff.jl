@@ -16,6 +16,7 @@
         sw_generator,
         project_to_subspace,
         solve_for_generator,
+        _canonicalize_operator_terms,
         set_fastmode_flat!,
         is_fastmode_flat
 
@@ -637,11 +638,11 @@
 
         # Tavis-Cummings Hamiltonian using ∑
         H_cav = ω_c * a'() * a()
-        H_atom = ∑(:i, tc_Δ/2 * σz(:i))
+        H_atom = ∑(:i, tc_Δ / 2 * σz(:i))
         H_int = ∑(:i, tc_g * (a'() * σm(:i) + a() * σp(:i)))
         H = H_cav + H_atom + H_int
 
-        P = Subspace(a'()*a() => 0, σz() => -1)
+        P = Subspace(a'() * a() => 0, σz() => -1)
 
         # Test: H is a plain QuExpr (no special types)
         @test H isa QuExpr
@@ -657,19 +658,19 @@
         @test !isempty(S.terms)
 
         # Full SW
-        result = schrieffer_wolff(H, P; order=2)
+        result = schrieffer_wolff(H, P; order = 2)
         @test result.H_eff isa QuExpr
         @test result.S isa QuExpr
 
         # Project to subspace
-        H_simple = ω_c * a'()*a() + ∑(:j, tc_Δ/2 * σz(:j))
+        H_simple = ω_c * a'() * a() + ∑(:j, tc_Δ / 2 * σz(:j))
         H_proj = project_to_subspace(H_simple, P)
         @test H_proj isa QuExpr
         @test is_diagonal(H_proj, P)
 
         # Combined subspace projection with SW
-        H_combined = ω_c * a'()*a() + ∑(:j, tc_Δ/2 * σz(:j))
-        result2 = schrieffer_wolff(H_combined, P; order=2)
+        H_combined = ω_c * a'() * a() + ∑(:j, tc_Δ / 2 * σz(:j))
+        result2 = schrieffer_wolff(H_combined, P; order = 2)
         @test result2.H_P isa QuExpr
 
         QuantumAlgebra.use_σpm(false)
@@ -678,25 +679,25 @@
     @testset "sw_generator correctness" begin
         Symbolics.@variables Δ g
         QuantumAlgebra.use_σpm(true)
-        
-        H = Δ/2 * σz() + g * (a'() * σm() + a() * σp())
+
+        H = Δ / 2 * σz() + g * (a'() * σm() + a() * σp())
         P = Subspace(σz() => -1)
-        
+
         # Order 1: sw_generator produces correct S₁
-        S_gen1 = sw_generator(H, P; order=1)
-        result_full2 = schrieffer_wolff(H, P; order=2, diagonal_only=false)
+        S_gen1 = sw_generator(H, P; order = 1)
+        result_full2 = schrieffer_wolff(H, P; order = 2, diagonal_only = false)
         @test normal_form(S_gen1) == normal_form(result_full2.S)
-        
+
         # Order 2: sw_generator matches full SW S
-        S_gen2 = sw_generator(H, P; order=2)
-        result_full2b = schrieffer_wolff(H, P; order=2, diagonal_only=false)
+        S_gen2 = sw_generator(H, P; order = 2)
+        result_full2b = schrieffer_wolff(H, P; order = 2, diagonal_only = false)
         @test normal_form(S_gen2) == normal_form(result_full2b.S)
-        
+
         # Order 3: sw_generator matches full SW S
-        S_gen3 = sw_generator(H, P; order=3)
-        result_full3 = schrieffer_wolff(H, P; order=3, diagonal_only=false)
+        S_gen3 = sw_generator(H, P; order = 3)
+        result_full3 = schrieffer_wolff(H, P; order = 3, diagonal_only = false)
         @test normal_form(S_gen3) == normal_form(result_full3.S)
-        
+
         QuantumAlgebra.use_σpm(false)
     end
 
@@ -756,8 +757,7 @@
         ops = nlevel_ops(3, :a)
 
         # H = Σᵢ Eᵢ |i⟩⟨i| + Σᵢⱼ Vᵢⱼ |i⟩⟨j|
-        H =
-            1 * ops[1, 1] + 2 * ops[2, 2] + 3 * ops[3, 3] + ops[1, 2] + ops[2, 1]
+        H = 1 * ops[1, 1] + 2 * ops[2, 2] + 3 * ops[3, 3] + ops[1, 2] + ops[2, 1]
 
         # Project onto state 1 (ground)
         P = Subspace(ops[1, 1] => 1)
@@ -779,7 +779,8 @@
         H_P = project_to_subspace(H, P)
 
         coeffs = [string(coeff) for (_, coeff) in H_P.terms]
-        op_strs = [isempty(term.bares.v) ? "𝟙" : string(term.bares) for (term, _) in H_P.terms]
+        op_strs =
+            [isempty(term.bares.v) ? "𝟙" : string(term.bares) for (term, _) in H_P.terms]
 
         @test op_strs == ["𝟙"]
         @test any(c -> occursin("E1", c), coeffs)
@@ -793,9 +794,7 @@
         @variables Δ δ ω g1 g2
 
         H0 = 0 * L[1, 1] + Δ * L[2, 2] + (Δ + δ) * L[3, 3] + ω * a'() * a()
-        V =
-            g1 * (L[1, 2] * a'() + L[2, 1] * a()) +
-            g2 * (L[2, 3] * a'() + L[3, 2] * a())
+        V = g1 * (L[1, 2] * a'() + L[2, 1] * a()) + g2 * (L[2, 3] * a'() + L[3, 2] * a())
         H = normal_form(H0 + V)
         P = Subspace(L[1, 1] => 1)
 
@@ -813,6 +812,144 @@
         coeffs_exc = [string(coeff) for (_, coeff) in result_exc.H_P.terms]
         has_g2_exc = any(c -> occursin("g2", c), coeffs_exc)
         @test !has_g2_exc
+    end
+
+    @testset "flat-mode operator canonicalization" begin
+        L = nlevel_ops(2, :Lflatcanonical)
+        raw = a() * L[1, 2] * L[2, 1] * a'()
+
+        canonical = _canonicalize_operator_terms(raw)
+        expected = normal_form(raw)
+
+        @test canonical == expected
+        @test length(canonical.terms) == 2
+    end
+
+    @testset "flat-mode fourth-order two-level Kerr" begin
+        L = nlevel_ops(2, :Lflatkerr)
+        Δ = 2 // 1
+        ω = 1 // 5
+        g = 1 // 10
+
+        H0 = Δ * L[2, 2] + ω * a'() * a()
+        V = g * (L[1, 2] + L[2, 1]) * (a'() + a())
+        H = normal_form(H0 + V)
+        P = Subspace(L[1, 1] => 1)
+
+        result_fast =
+            schrieffer_wolff(H, P; order = 4, fastmode_flat = true, simplify_mode = :none)
+        result_stepwise =
+            schrieffer_wolff(H, P; order = 4, fastmode_flat = false, simplify_mode = :none)
+        result_graded = schrieffer_wolff(
+            normal_form(H0),
+            Dict(1 => normal_form(V)),
+            P;
+            order = 4,
+            fastmode_flat = true,
+            simplify_mode = :none,
+        )
+
+        target = first(normal_form(a'()^2 * a()^2).terms)[1].bares
+        kerr_fast =
+            only(coeff for (term, coeff) in result_fast.H_P.terms if term.bares == target)
+        kerr_stepwise = only(
+            coeff for (term, coeff) in result_stepwise.H_P.terms if term.bares == target
+        )
+
+        d_minus = Δ - ω
+        d_plus = Δ + ω
+        expected =
+            g^4 * (
+                1 / d_minus^3 +
+                1 / d_plus^3 +
+                2 / (d_minus^2 * d_plus) +
+                2 / (d_minus * d_plus^2)
+            )
+
+        @test result_fast.H_P == normal_form(result_fast.H_P)
+        @test result_fast.H_P == result_graded.H_P
+        @test iszero(Symbolics.value(Symbolics.simplify(kerr_fast - expected)))
+        @test iszero(Symbolics.value(Symbolics.simplify(kerr_fast - kerr_stepwise)))
+    end
+
+    @testset "physically graded dipole self-energy" begin
+        L = nlevel_ops(3, :Lgradedselfenergy)
+        Δ = 2 // 1
+        E2 = 6 // 1
+        ω = 1 // 5
+        g1 = 1 // 10
+        g2 = 2 // 25
+
+        H0 = normal_form(Δ * L[2, 2] + E2 * L[3, 3] + ω * a'() * a())
+        V = normal_form(
+            g1 * (L[1, 2] + L[2, 1]) * (a'() + a()) +
+            g2 * (L[2, 3] + L[3, 2]) * (a'() + a()),
+        )
+        W = normal_form(
+            (g1^2 / ω) * (L[1, 1] + L[2, 2]) +
+            (g2^2 / ω) * (L[2, 2] + L[3, 3]) +
+            (g1 * g2 / ω) * (L[1, 3] + L[3, 1]),
+        )
+        P = Subspace(L[1, 1] => 1)
+
+        without_W2 =
+            schrieffer_wolff(
+                H0,
+                Dict(1 => V),
+                P;
+                order = 2,
+                fastmode_flat = true,
+                simplify_mode = :none,
+            ).H_P
+        with_W2 =
+            schrieffer_wolff(
+                H0,
+                Dict(1 => V, 2 => W),
+                P;
+                order = 2,
+                fastmode_flat = true,
+                simplify_mode = :none,
+            ).H_P
+        without_W4 =
+            schrieffer_wolff(
+                H0,
+                Dict(1 => V),
+                P;
+                order = 4,
+                fastmode_flat = true,
+                simplify_mode = :none,
+            ).H_P
+        with_W4 =
+            schrieffer_wolff(
+                H0,
+                Dict(1 => V, 2 => W),
+                P;
+                order = 4,
+                fastmode_flat = true,
+                simplify_mode = :none,
+            ).H_P
+
+        function channel_coeff(expr, operator)
+            target = first(normal_form(operator).terms)[1].bares
+            return only(coeff for (term, coeff) in expr.terms if term.bares == target)
+        end
+        coeff_difference(left, right, operator) = Symbolics.value(
+            Symbolics.simplify(
+                channel_coeff(left, operator) - channel_coeff(right, operator),
+            ),
+        )
+
+        @test coeff_difference(with_W2, without_W2, one(QuExpr)) == g1^2 / ω
+        for operator in (a'() * a(), a()^2, a'()^2)
+            @test iszero(coeff_difference(with_W2, without_W2, operator))
+        end
+
+        for operator in (a'()^2 * a()^2, a()^4, a'()^4, a'()^3 * a(), a'() * a()^3)
+            @test iszero(coeff_difference(with_W4, without_W4, operator))
+        end
+        @test !iszero(coeff_difference(with_W4, without_W4, one(QuExpr)))
+        @test !iszero(coeff_difference(with_W4, without_W4, a'() * a()))
+        @test with_W4 == normal_form(with_W4)
     end
 
     @testset "schrieffer_wolff simplify_mode options" begin
